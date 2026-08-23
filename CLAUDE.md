@@ -43,36 +43,9 @@
 - Aller dans les logs, trouver la cause racine, résoudre
 - Pas besoin d'être guidé étape par étape
 
-### 7\. Analyse du Vault
+### 7\. Début de Session
 
-- Avant tout travail : extraire les mots-clés de la requête, les matcher contre index.md
-- Lire uniquement les fichiers identifiés comme pertinents — ne jamais tout relire
-- Si aucun match : le signaler explicitement avant de continuer, ne pas improviser
-- Cette étape est bloquante : aucune implémentation ne commence tant que l'analyse vault n'est pas faite
-
-### 8\. Début de Session
-
-* a chaque début de session, analyse le contenu du projet, faire un markdown complet du projet point par point, et alimenter le vault avec
-
-### 9\. Alimenter le Vault
-
-**Cette étape s'exécute à la fin de chaque réponse, sans exception.**
-
-#### Déclencheurs — ajouter une entrée si au moins un de ces cas s'applique
-
-* Un bug a été résolu → cause racine + solution identifiées
-* Un pattern ou technique a été utilisé pour la première fois dans ce projet
-* Une décision d'architecture ou de design a été prise
-* Un fichier, route, API ou variable clé a été découvert et documenté
-* Une configuration a été validée ou corrigée
-* Une solution CTF a été trouvée (méthode, payload, contournement)
-* Une erreur récurrente a été comprise (pour ne pas la répéter)
-
-Ne pas ajouter : clarifications sans nouveau savoir, informations temporaires, doublons d'entrées existantes, évidences déjà dans la doc officielle.
-
-#### Lien du vault
-
-"C:\Users\compteadmin\Desktop\OBSIDIAN_CHEST"
+* a chaque début de session, analyse le contenu du projet, faire un markdown complet du projet point par point
 
 ## PRINCIPES FONDAMENTAUX
 
