@@ -1,0 +1,64 @@
+
+{
+  "version": "1.0",
+  "description": "Données par défaut CTF Arena — catégories, challenges et achievements.",
+  "exportedAt": "2026-05-17T00:00:00+00:00",
+  "categories": [
+    {
+      "id": "OSINT",
+      "name": "OSINT",
+      "description": "L'OSINT consiste à collecter et analyser des informations accessibles publiquement.",
+      "descriptionMd": "## OSINT\nL'**Open Source Intelligence** consiste à collecter et analyser des informations accessibles publiquement.\n\n- Réseaux sociaux\n- Moteurs de recherche\n- Bases de données publiques",
+      "icon": "🔍",
+      "color": "#3B82F6",
+      "sortOrder": 1
+    },
+    {
+      "id": "Stéganographie",
+      "name": "Stéganographie",
+      "description": "La stéganographie cache des données dans un support anodin (image, audio, vidéo, texte).",
+      "descriptionMd": "## Stéganographie\nL'art de **cacher des données** dans un support anodin.\n\n- Images (LSB, metadata)\n- Audio / Vidéo\n- Texte",
+      "icon": "🕵️",
+      "color": "#8B5CF6",
+      "sortOrder": 2
+    },
+    {
+      "id": "Cryptographie",
+      "name": "Cryptographie",
+      "description": "La cryptographie traite le chiffrement, le déchiffrement, les attaques et les erreurs de conception.",
+      "descriptionMd": "## Cryptographie\nChiffrement, déchiffrement et **attaques** de systèmes cryptographiques.\n\n- Chiffres classiques\n- RSA, AES\n- Hash et signatures",
+      "icon": "🔐",
+      "color": "#EF4444",
+      "sortOrder": 3
+    },
+    {
+      "id": "Web",
+      "name": "Web",
+      "description": "Les challenges Web exploitent des vulnérabilités applicatives comme XSS, SQLi, LFI et CSRF.",
+      "descriptionMd": "## Web\nExploitation de **vulnérabilités** dans les applications web.\n\n- XSS, SQLi, CSRF\n- LFI / RFI\n- Authentification",
+      "icon": "🌐",
+      "color": "#10B981",
+      "sortOrder": 4
+    },
+    {
+      "id": "Forensic",
+      "name": "Forensic",
+      "description": "La forensique numérique analyse des traces numériques pour reconstruire des événements.",
+      "descriptionMd": "## Forensic\nAnalyse de **traces numériques** pour reconstruire des événements.\n\n- Analyse de logs\n- Mémoire et disques\n- Réseau (PCAP)",
+      "icon": "🔬",
+      "color": "#14B8A6",
+      "sortOrder": 5
+    },
+    {
+      "id": "Misc",
+      "name": "Misc",
+      "description": "La catégorie Misc regroupe les épreuves diverses : logique, programmation, quiz et puzzles.",
+      "descriptionMd": "## Misc\nCatégorie **fourre-tout** regroupant les épreuves diverses.\n\n- Logique et puzzles\n- Programmation\n- Quiz",
+      "icon": "🎲",
+      "color": "#6B7280",
+      "sortOrder": 6
+    }
+  ],
+  "challenges": [],
+  "achievements": []
+}

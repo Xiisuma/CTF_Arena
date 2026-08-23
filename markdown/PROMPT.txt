@@ -1,0 +1,18 @@
+Une presence semble vous observer et un code secret est cache dans l'image fournie : a vous de l'identifier.
+
+Le flag doit etre saisi sous la forme CTF{code_secret}.
+
+
+
+
+
+docker compose down -v 
+docker compose up --build -d
+
+
+docker compose down
+docker compose build --no-cache
+docker compose up
+
+
+N22h3OCfCnC34VOWVJdtqQ9sRpFuuN2j2igIg9CPyK9zfZv3iklWc1T8s/6bQHra

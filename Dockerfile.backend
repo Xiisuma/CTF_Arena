@@ -1,0 +1,41 @@
+
+FROM php:8.2-apache
+
+# Extensions PHP nécessaires
+RUN docker-php-ext-install pdo pdo_mysql
+
+# Active mod_rewrite pour Apache
+RUN a2enmod rewrite
+
+# Copie les fichiers PHP dans le dossier web
+COPY api.php  /var/www/html/api.php
+COPY init.php /var/www/html/init.php
+# Le schema.sql est monté via docker-compose (volume), pas copié ici
+# Il reste dans sql/ sur l'hôte, protégé par .htaccess
+
+COPY php.ini /usr/local/etc/php/conf.d/custom.ini
+
+# Crée le dossier uploads
+RUN mkdir -p /var/www/html/uploads \
+    && chown www-data:www-data /var/www/html/uploads \
+    && chmod 755 /var/www/html/uploads
+
+# Crée le dossier pour les logs d'activité (catégories : auth, gameplay, teams, social, admin, misc + all.log)
+RUN mkdir -p /var/log/ctf_arena \
+    && chown www-data:www-data /var/log/ctf_arena \
+    && chmod 755 /var/log/ctf_arena \
+    && for f in auth gameplay teams social admin misc all; do \
+         touch /var/log/ctf_arena/$f.log \
+         && chown www-data:www-data /var/log/ctf_arena/$f.log \
+         && chmod 644 /var/log/ctf_arena/$f.log; \
+       done
+
+# Config Apache pour autoriser .htaccess
+RUN echo '<Directory /var/www/html>\n\
+    Options -Indexes +FollowSymLinks\n\
+    AllowOverride All\n\
+    Require all granted\n\
+</Directory>' > /etc/apache2/conf-available/ctf.conf \
+    && a2enconf ctf
+
+EXPOSE 80

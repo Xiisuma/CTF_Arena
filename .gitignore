@@ -1,0 +1,45 @@
+
+# ============================================================
+# CTF Arena — .gitignore
+# CHEMIN : /chemin/vers/ton/projet/.gitignore
+# ============================================================
+
+# ─── SECRETS — ne jamais commiter ────────────────────────────
+.env
+.env.local
+.env.production
+.env.*.local
+
+# ─── Dépendances Node ─────────────────────────────────────────
+node_modules/
+
+# ─── Build Vite ──────────────────────────────────────────────
+dist/
+dist-ssr/
+
+# ─── Uploads utilisateurs ────────────────────────────────────
+uploads/*
+!uploads/.gitkeep
+
+# ─── Données Docker ──────────────────────────────────────────
+# (les volumes MySQL sont locaux à la machine)
+
+# ─── Logs ────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ─── Éditeurs ────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── TypeScript ──────────────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Cache ───────────────────────────────────────────────────
+.cache/
+.vite/
+

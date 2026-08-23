@@ -1,0 +1,111 @@
+
+services:
+  db:
+    image: mysql:8
+    restart: always
+    # Forcer utf8mb4 comme charset serveur par défaut — évite les problèmes
+    # d'encodage sur les scripts d'init et les connexions sans SET NAMES explicite
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ctf_arena
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Base de données
+      DB_HOST: db
+      DB_USER: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      DB_NAME: ctf_arena
+
+      # ──────────────────────────────────────────────────────────────────
+      # SECRETS OBLIGATOIRES — doivent être définis dans votre .env
+      # Le service refusera de démarrer si l'une de ces variables est vide.
+      # ──────────────────────────────────────────────────────────────────
+
+      # Clé de chiffrement AES-256 pour les flags (64 chars hex = 32 octets)
+      # Générer : openssl rand -hex 32
+      # ⚠️  Ne jamais changer après le premier lancement (les flags en BDD
+      #     seraient illisibles). Générée une fois, conservée pour toujours.
+      FLAG_ENCRYPT_KEY: ${FLAG_ENCRYPT_KEY}
+
+      # Clé HMAC pour les tokens de reset de mot de passe
+      # Générer : openssl rand -hex 32
+      RESET_SECRET: ${RESET_SECRET}
+
+      # Mot de passe de l'administrateur ALPHATEN
+      # Générer : openssl rand -base64 24
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      # Secret partagé avec ws-server pour authentifier les appels /notify
+      # Générer : openssl rand -hex 32
+      NOTIFY_SECRET: ${NOTIFY_SECRET}
+
+      # URL du frontend (pour les liens dans les emails)
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+
+      # CORS (origines autorisées, séparées par des virgules)
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+
+      # SMTP (optionnel — pour les emails de reset de mot de passe)
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-noreply@ctf-arena.local}
+
+    volumes:
+      - uploads_data:/var/www/html/uploads
+    command: bash -c "php /var/www/html/init.php && apache2-foreground"
+    healthcheck:
+      # Vérifie qu'Apache répond avant que le frontend ne commence à proxifier
+      test: ["CMD", "curl", "-sf", "http://localhost/api.php?action=get_ctf_state"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  ws-server:
+    build:
+      context: ./ws-server
+    restart: always
+    expose:
+      - "8080"
+    environment:
+      # Doit correspondre exactement à NOTIFY_SECRET du service backend
+      NOTIFY_SECRET: ${NOTIFY_SECRET}
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api.php}
+    restart: always
+    ports:
+      - "${PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+      ws-server:
+        condition: service_started
+
+volumes:
+  db_data:
+  uploads_data:
+

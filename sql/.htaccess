@@ -1,0 +1,6 @@
+
+# Bloquer tout accès HTTP direct au dossier sql/
+# Valable pour Apache (et compatibles)
+Order Deny,Allow
+Deny from all
+

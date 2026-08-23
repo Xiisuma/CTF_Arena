@@ -1,0 +1,205 @@
+
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+}
+
+/* ============================================ */
+/* THÈME VIOLET (par défaut)                   */
+/* ============================================ */
+[data-theme="violet"] {
+  --bg-primary: #0a0a1a;
+  --bg-secondary: #0f0f2a;
+  --bg-card: rgba(76, 29, 149, 0.2);
+  --bg-card-hover: rgba(109, 40, 217, 0.2);
+  --bg-input: rgba(76, 29, 149, 0.5);
+  --border-primary: rgba(139, 92, 246, 0.1);
+  --border-secondary: rgba(139, 92, 246, 0.2);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(196, 181, 253, 0.9);
+  --text-tertiary: rgba(196, 181, 253, 0.6);
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #a78bfa;
+  --shadow-color: rgba(109, 40, 217, 0.1);
+  --glow-color: rgba(139, 92, 246, 0.15);
+}
+
+/* ============================================ */
+/* THÈME CLAIR                                  */
+/* ============================================ */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --bg-card: #f3f4f6;
+  --bg-card-hover: #e5e7eb;
+  --bg-input: #ffffff;
+  --border-primary: #e5e7eb;
+  --border-secondary: #d1d5db;
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-tertiary: #6b7280;
+  --accent-primary: #8b5cf6;
+  --accent-secondary: #a78bfa;
+  --shadow-color: rgba(0, 0, 0, 0.05);
+  --glow-color: rgba(139, 92, 246, 0.1);
+}
+
+
+/* ============================================ */
+/* THÈME ÉVÉNEMENTIEL — HALLOWEEN 🎃           */
+/* ============================================ */
+[data-event="halloween"] {
+  --bg-primary:     #0d0a0f;
+  --bg-secondary:   #160d1a;
+  --bg-card:        rgba(120, 40, 10, 0.2);
+  --bg-card-hover:  rgba(160, 60, 10, 0.25);
+  --bg-input:       rgba(120, 40, 10, 0.4);
+  --border-primary: rgba(220, 100, 20, 0.15);
+  --border-secondary: rgba(220, 100, 20, 0.3);
+  --text-primary:   #fff0e0;
+  --text-secondary: rgba(255, 180, 100, 0.9);
+  --text-tertiary:  rgba(255, 160, 80, 0.6);
+  --accent-primary: #e06010;
+  --accent-secondary: #f08030;
+  --shadow-color:   rgba(200, 80, 10, 0.15);
+  --glow-color:     rgba(220, 100, 20, 0.2);
+}
+[data-event="halloween"]::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at 50% -10%, rgba(220,100,20,0.12), transparent);
+  z-index: 0;
+}
+
+/* ============================================ */
+/* THÈME ÉVÉNEMENTIEL — NOËL 🎄               */
+/* ============================================ */
+[data-event="noel"] {
+  --bg-primary:     #050f0a;
+  --bg-secondary:   #081510;
+  --bg-card:        rgba(10, 80, 30, 0.2);
+  --bg-card-hover:  rgba(15, 100, 40, 0.25);
+  --bg-input:       rgba(10, 80, 30, 0.45);
+  --border-primary: rgba(50, 180, 80, 0.15);
+  --border-secondary: rgba(50, 180, 80, 0.3);
+  --text-primary:   #e8fff0;
+  --text-secondary: rgba(120, 240, 150, 0.9);
+  --text-tertiary:  rgba(100, 200, 130, 0.6);
+  --accent-primary: #1db954;
+  --accent-secondary: #22d96a;
+  --shadow-color:   rgba(20, 160, 60, 0.15);
+  --glow-color:     rgba(30, 180, 70, 0.2);
+}
+[data-event="noel"]::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at 50% -10%, rgba(30,180,70,0.1), transparent);
+  z-index: 0;
+}
+
+/* ============================================ */
+/* THÈME ÉVÉNEMENTIEL — PÂQUES 🐣              */
+/* ============================================ */
+[data-event="paques"] {
+  --bg-primary:     #0a080f;
+  --bg-secondary:   #120d18;
+  --bg-card:        rgba(120, 60, 160, 0.18);
+  --bg-card-hover:  rgba(150, 80, 200, 0.22);
+  --bg-input:       rgba(120, 60, 160, 0.4);
+  --border-primary: rgba(200, 120, 240, 0.15);
+  --border-secondary: rgba(200, 120, 240, 0.28);
+  --text-primary:   #fdf0ff;
+  --text-secondary: rgba(230, 170, 255, 0.9);
+  --text-tertiary:  rgba(200, 140, 230, 0.6);
+  --accent-primary: #c060f0;
+  --accent-secondary: #d880ff;
+  --shadow-color:   rgba(180, 80, 220, 0.15);
+  --glow-color:     rgba(200, 100, 240, 0.2);
+}
+[data-event="paques"]::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at 50% -10%, rgba(200,100,240,0.1), transparent);
+  z-index: 0;
+}
+
+/* ============================================ */
+/* CLASSES UTILITAIRES POUR LES THÈMES         */
+/* ============================================ */
+.bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.bg-card {
+  background-color: var(--bg-card);
+}
+
+.bg-card-hover:hover {
+  background-color: var(--bg-card-hover);
+}
+
+.bg-input {
+  background-color: var(--bg-input);
+}
+
+.border-primary {
+  border-color: var(--border-primary);
+}
+
+.border-secondary {
+  border-color: var(--border-secondary);
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.accent-primary {
+  color: var(--accent-primary);
+}
+
+.accent-secondary {
+  color: var(--accent-secondary);
+}
+
+.bg-accent-primary {
+  background-color: var(--accent-primary);
+}
+
+.bg-accent-secondary {
+  background-color: var(--accent-secondary);
+}
+
+.shadow-theme {
+  box-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -1px var(--shadow-color);
+}
+
+.glow-theme {
+  background: radial-gradient(circle, var(--glow-color) 0%, transparent 70%);
+}
