@@ -14,6 +14,7 @@
  */
 const { WebSocketServer } = require('ws');
 const http = require('http');
+const { timingSafeEqual } = require('crypto');
 
 const PORT = 8080;
 
@@ -30,11 +31,26 @@ const clients = new Set();
 // userId (string) → Set<WebSocket> (pour les messages ciblés)
 const userClients = new Map();
 
+// Comparaison à durée constante, comme hash_equals côté PHP. timingSafeEqual
+// exige des buffers de même longueur : on compare d'abord la taille.
+function secretMatches(incoming) {
+  const a = Buffer.from(String(incoming));
+  const b = Buffer.from(NOTIFY_SECRET);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 const server = http.createServer((req, res) => {
+  // Sonde de disponibilité pour le healthcheck Docker — aucune donnée exposée.
+  if (req.method === 'GET' && req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, clients: clients.size }));
+    return;
+  }
+
   if (req.method === 'POST' && req.url === '/notify') {
     // ── Vérification du secret partagé ───────────────────────────────────────
     const incoming = req.headers['x-notify-secret'] ?? '';
-    if (incoming !== NOTIFY_SECRET) {
+    if (!secretMatches(incoming)) {
       console.warn('[ws] /notify refusé — secret invalide');
       res.writeHead(401, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, error: 'Unauthorized' }));

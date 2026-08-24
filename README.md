@@ -530,7 +530,14 @@ Chaque requête mutante vérifie le header `X-CSRF-Token`.
 
 ### Rate limiting
 
-5 tentatives maximum par fenêtre de 10 minutes par IP (table `rate_limits`). Horodatage stocké en `DATETIME` pour cohérence avec le reste du schéma.
+Deux compteurs distincts, stockés dans la table `rate_limits` (horodatage en `DATETIME`, cohérent avec le reste du schéma) :
+
+| Compteur | Clé | Défaut | Variables |
+|----------|-----|--------|-----------|
+| Tentatives de connexion | par IP | 5 par 5 min | `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW` |
+| Soumissions de flag erronées | `flag:{userId}` | 5 par 1 min | `FLAG_ATTEMPT_MAX`, `FLAG_ATTEMPT_WINDOW` |
+
+Les quatre valeurs se règlent par variable d'environnement, sans rebuild. Pendant un événement, 5 flags par minute est vite atteint par un joueur qui se trompe de format : `FLAG_ATTEMPT_MAX=10` est un réglage plus confortable.
 
 ### CORS
 
@@ -596,15 +603,51 @@ FRONTEND_URL=https://votre-domaine.com
 ALLOWED_ORIGINS=https://votre-domaine.com
 ```
 
-### HTTPS (recommandé)
+### HTTPS (obligatoire hors réseau local de confiance)
 
-Placer un reverse proxy (Caddy, Traefik, ou Nginx externe) devant le service `frontend` pour terminer TLS. Exemple avec Caddy :
+Sans TLS, le cookie de session circule en clair : quiconque écoute le réseau de l'événement peut récupérer une session. PHP ne pose l'attribut `Secure` que lorsqu'il voit `X-Forwarded-Proto: https`.
 
-```caddyfile
-votre-domaine.com {
-    reverse_proxy localhost:3000
-}
+Une surcouche Compose prête à l'emploi ajoute Caddy devant le frontend et obtient un certificat Let's Encrypt automatiquement.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
 ```
+
+Prérequis, dans `.env` :
+
+```dotenv
+DOMAIN=ctf.mon-domaine.fr
+ACME_EMAIL=moi@mon-domaine.fr
+FRONTEND_URL=https://ctf.mon-domaine.fr
+ALLOWED_ORIGINS=https://ctf.mon-domaine.fr
+PORT=127.0.0.1:3000
+```
+
+`PORT=127.0.0.1:3000` restreint le frontend à la boucle locale : seul Caddy est joignable de l'extérieur. Le domaine doit pointer sur la machine et les ports 80 et 443 doivent être libres.
+
+Pour un autre terminateur TLS (Traefik, Cloudflare Tunnel, ngrok), la seule exigence est de transmettre `X-Forwarded-Proto: https` : nginx le relaie déjà au backend.
+
+### Sauvegarde et restauration
+
+Le volume `db_data` survit aux redémarrages mais pas à une suppression de volume ni à une corruption. Pendant un événement, une perte de base signifie une perte des scores.
+
+```bash
+# Sauvegarde ponctuelle (dump gzippé dans ./backups, 48 archives conservées)
+./scripts/backup-db.sh
+
+# Restauration — demande confirmation et sauvegarde l'état courant avant d'écraser
+./scripts/restore-db.sh backups/ctf_arena_20260825-143000.sql.gz
+```
+
+Sur un hôte Windows sans Git Bash : `scripts\backup-db.ps1`.
+
+Pendant l'épreuve, planifier une sauvegarde toutes les 15 minutes :
+
+```bash
+*/15 * * * * cd /chemin/vers/le/projet && ./scripts/backup-db.sh
+```
+
+Le dossier `backups/` est ignoré par git : le stocker ailleurs que sur la machine qui héberge la base.
 
 ### Volumes persistants
 
@@ -612,6 +655,7 @@ votre-domaine.com {
 |--------|---------|
 | `db_data` | Données MySQL (challenges, joueurs, flags…) |
 | `uploads_data` | Fichiers attachés aux challenges |
+| `logs_data` | Journaux d'activité (`/var/log/ctf_arena`) |
 
 Ces volumes survivent aux redémarrages et aux `docker compose down` (sans `-v`).
 

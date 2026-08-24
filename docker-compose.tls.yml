@@ -1,0 +1,40 @@
+# Surcouche HTTPS — ajoute Caddy devant le frontend et obtient un certificat
+# Let's Encrypt automatiquement.
+#
+# Prérequis :
+#   1. Un nom de domaine pointant sur la machine (enregistrement A/AAAA).
+#   2. Les ports 80 et 443 ouverts et libres sur l'hôte.
+#   3. Dans .env :
+#        DOMAIN=ctf.mon-domaine.fr
+#        ACME_EMAIL=moi@mon-domaine.fr
+#        FRONTEND_URL=https://ctf.mon-domaine.fr
+#        ALLOWED_ORIGINS=https://ctf.mon-domaine.fr
+#        PORT=127.0.0.1:3000      # le frontend n'est plus exposé publiquement
+#
+# Lancement :
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+#
+# Caddy transmet X-Forwarded-Proto: https ; nginx le relaie au backend, ce qui
+# fait poser le cookie de session avec l'attribut Secure.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    depends_on:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

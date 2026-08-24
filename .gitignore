@@ -24,6 +24,9 @@ uploads/*
 # ─── Données Docker ──────────────────────────────────────────
 # (les volumes MySQL sont locaux à la machine)
 
+# ─── Sauvegardes base de données ─────────────────────────────
+backups/
+
 # ─── Logs ────────────────────────────────────────────────────
 *.log
 npm-debug.log*

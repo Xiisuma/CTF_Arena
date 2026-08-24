@@ -1,0 +1,15 @@
+# Terminaison TLS pour CTF Arena — utilisé par docker-compose.tls.yml.
+# Le certificat Let's Encrypt est demandé et renouvelé automatiquement.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Le WebSocket passe par le même hôte : Caddy gère l'upgrade sans réglage.
+	reverse_proxy frontend:80 {
+		header_up X-Forwarded-Proto https
+	}
+}

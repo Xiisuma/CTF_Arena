@@ -81,11 +81,13 @@ define("SMTP_FROM", getenv("SMTP_FROM") ?: "noreply@ctf-arena.local");
 define("SMTP_FROM_NAME", "CTF Arena");
 define("FRONTEND_URL", getenv("FRONTEND_URL") ?: "http://localhost:3000");
 
-define("RATE_LIMIT_MAX", 5);
-define("RATE_LIMIT_WINDOW", 300); // 5 minutes (était 600s — trop permissif)
+// Réglables par variable d'environnement : pendant un événement, les seuils
+// utiles ne sont pas les mêmes qu'en exploitation normale.
+define("RATE_LIMIT_MAX", (int) (getenv("RATE_LIMIT_MAX") ?: 5));
+define("RATE_LIMIT_WINDOW", (int) (getenv("RATE_LIMIT_WINDOW") ?: 300)); // 5 minutes
 // Tentatives de flag erronées par utilisateur (clé "flag:{userId}" dans rate_limits)
-define("FLAG_ATTEMPT_MAX", 5);
-define("FLAG_ATTEMPT_WINDOW", 60); // 1 minute
+define("FLAG_ATTEMPT_MAX", (int) (getenv("FLAG_ATTEMPT_MAX") ?: 5));
+define("FLAG_ATTEMPT_WINDOW", (int) (getenv("FLAG_ATTEMPT_WINDOW") ?: 60)); // 1 minute
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
 
