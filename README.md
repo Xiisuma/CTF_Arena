@@ -534,8 +534,13 @@ Deux compteurs distincts, stockés dans la table `rate_limits` (horodatage en `D
 
 | Compteur | Clé | Défaut | Variables |
 |----------|-----|--------|-----------|
-| Tentatives de connexion | par IP | 5 par 5 min | `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW` |
+| Connexions ratées | `{ip}` | 5 par 5 min | `RATE_LIMIT_MAX`, `RATE_LIMIT_WINDOW` |
+| Inscriptions réussies | `reg:{ip}` | 30 par heure | `REGISTER_MAX`, `REGISTER_WINDOW` |
 | Soumissions de flag erronées | `flag:{userId}` | 5 par 1 min | `FLAG_ATTEMPT_MAX`, `FLAG_ATTEMPT_WINDOW` |
+
+Les trois compteurs sont indépendants : une inscription ne consomme pas le quota de connexion.
+
+L'IP retenue est celle du client réel. nginx utilise `set_real_ip_from` sur les plages privées et `real_ip_header X-Forwarded-For` : derrière un tunnel ou un reverse proxy, chaque joueur garde son propre compteur au lieu de partager celui de la passerelle. Attention tout de même : sur un événement sur site, tous les joueurs sortent par l'IP publique du lieu et partagent donc réellement un compteur — d'où `REGISTER_MAX` à 30 par heure plutôt que 5 par 5 minutes.
 
 Les quatre valeurs se règlent par variable d'environnement, sans rebuild. Pendant un événement, 5 flags par minute est vite atteint par un joueur qui se trompe de format : `FLAG_ATTEMPT_MAX=10` est un réglage plus confortable.
 
@@ -648,6 +653,22 @@ Pendant l'épreuve, planifier une sauvegarde toutes les 15 minutes :
 ```
 
 Le dossier `backups/` est ignoré par git : le stocker ailleurs que sur la machine qui héberge la base.
+
+### Vérification de bout en bout
+
+`scripts/smoke-api.py` rejoue tout le parcours de l'API — inscription, connexion admin, catégories, challenges avec pièce jointe, amis, équipes, soumission de flags, achievements, événements, export et import — et signale chaque appel qui ne répond pas comme attendu.
+
+```bash
+python scripts/smoke-api.py "<mot_de_passe_admin>" essai1 http://localhost:3100/api.php
+```
+
+Le script écrit en base et manipule l'état du CTF : le lancer contre une instance jetable, jamais contre celle de l'événement. Pour cela, cloner le dépôt ailleurs, remplir un `.env` neuf à partir de `.env.example` avec `PORT=3100`, puis :
+
+```bash
+docker compose -p ctfessai up -d --build
+```
+
+Le tag passé en deuxième argument suffixe tous les identifiants créés, ce qui permet de relancer le script plusieurs fois sur la même instance.
 
 ### Volumes persistants
 

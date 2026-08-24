@@ -79,6 +79,8 @@ services:
       RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-300}
       FLAG_ATTEMPT_MAX: ${FLAG_ATTEMPT_MAX:-5}
       FLAG_ATTEMPT_WINDOW: ${FLAG_ATTEMPT_WINDOW:-60}
+      REGISTER_MAX: ${REGISTER_MAX:-30}
+      REGISTER_WINDOW: ${REGISTER_WINDOW:-3600}
 
     volumes:
       - uploads_data:/var/www/html/uploads

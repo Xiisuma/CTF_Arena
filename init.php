@@ -118,6 +118,17 @@ echo "[init] Table active_event vérifiée.\n";
 try { $pdo->exec("ALTER TABLE users ADD COLUMN avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🎯'"); echo "[init] Colonne avatar_emoji ajoutée.\n"; } catch (Exception $e) { echo "[init] avatar_emoji déjà présente.\n"; }
 try { $pdo->exec("ALTER TABLE users ADD COLUMN bio VARCHAR(200) NOT NULL DEFAULT ''"); echo "[init] Colonne bio ajoutée.\n"; } catch (Exception $e) { echo "[init] bio déjà présente.\n"; }
 
+// La clé de rate_limits n'est plus seulement une IP mais un préfixe + IP
+// ("reg:2001:db8::1" fait 49 caractères) : la colonne doit tenir 64.
+try {
+    $pdo->exec("ALTER TABLE rate_limits MODIFY ip VARCHAR(64) NOT NULL");
+    echo "[init] Colonne rate_limits.ip élargie.
+";
+} catch (Exception $e) {
+    echo "[init] rate_limits.ip déjà au bon format.
+";
+}
+
 // Créer les lignes d'état manquantes, sans écraser celles qui existent.
 // Le backend redémarre pour bien d'autres raisons qu'un nouvel événement
 // (crash, restart:always, mise à jour de configuration) : écraser game_started

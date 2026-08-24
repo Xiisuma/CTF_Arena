@@ -88,6 +88,11 @@ define("RATE_LIMIT_WINDOW", (int) (getenv("RATE_LIMIT_WINDOW") ?: 300)); // 5 mi
 // Tentatives de flag erronées par utilisateur (clé "flag:{userId}" dans rate_limits)
 define("FLAG_ATTEMPT_MAX", (int) (getenv("FLAG_ATTEMPT_MAX") ?: 5));
 define("FLAG_ATTEMPT_WINDOW", (int) (getenv("FLAG_ATTEMPT_WINDOW") ?: 60)); // 1 minute
+// Créations de comptes par IP. Compteur distinct de celui des connexions : sur
+// un événement sur site, tous les joueurs partagent l'IP publique du lieu, et
+// une limite calquée sur celle du brute-force bloquerait les inscriptions.
+define("REGISTER_MAX", (int) (getenv("REGISTER_MAX") ?: 30));
+define("REGISTER_WINDOW", (int) (getenv("REGISTER_WINDOW") ?: 3600)); // 1 heure
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
 
@@ -374,38 +379,45 @@ function verify_csrf(): void
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
 
-function check_rate_limit(string $ip): void
-{
+/**
+ * Vérifie un compteur de tentatives. La clé est libre : "1.2.3.4" pour les
+ * connexions, "reg:1.2.3.4" pour les inscriptions. Chaque usage a donc son
+ * propre seuil sans se marcher dessus.
+ */
+function check_rate_limit(
+  string $key,
+  int $max = RATE_LIMIT_MAX,
+  int $window = RATE_LIMIT_WINDOW
+): void {
   $pdo = get_pdo();
   // window_start est un DATETIME — comparaison native SQL, pas de timestamp Unix
   $pdo
     ->prepare(
-      "DELETE FROM rate_limits WHERE ip = ? AND window_start < DATE_SUB(NOW(), INTERVAL " .
-        RATE_LIMIT_WINDOW .
-        " SECOND)",
+      "DELETE FROM rate_limits WHERE ip = ? AND window_start < DATE_SUB(NOW(), INTERVAL ? SECOND)",
     )
-    ->execute([$ip]);
+    ->execute([$key, $window]);
   $stmt = $pdo->prepare("SELECT attempts FROM rate_limits WHERE ip = ?");
-  $stmt->execute([$ip]);
+  $stmt->execute([$key]);
   $row = $stmt->fetch();
-  if ($row && $row["attempts"] >= RATE_LIMIT_MAX) {
-    json_error("Trop de tentatives. Réessayez dans 10 minutes.", 429);
+  if ($row && $row["attempts"] >= $max) {
+    $minutes = max(1, (int) ceil($window / 60));
+    json_error("Trop de tentatives. Réessayez dans $minutes minutes.", 429);
   }
 }
-function increment_rate_limit(string $ip): void
+function increment_rate_limit(string $key): void
 {
   get_pdo()
     ->prepare(
       'INSERT INTO rate_limits (ip, attempts, window_start) VALUES (?, 1, NOW())
          ON DUPLICATE KEY UPDATE attempts = attempts + 1',
     )
-    ->execute([$ip]);
+    ->execute([$key]);
 }
-function reset_rate_limit(string $ip): void
+function reset_rate_limit(string $key): void
 {
   get_pdo()
     ->prepare("DELETE FROM rate_limits WHERE ip = ?")
-    ->execute([$ip]);
+    ->execute([$key]);
 }
 
 /**
@@ -856,7 +868,7 @@ switch ($action) {
   // ── Inscription ───────────────────────────────────────────────────────────
   case "register":
     $ip = get_client_ip();
-    check_rate_limit($ip);
+    check_rate_limit("reg:$ip", REGISTER_MAX, REGISTER_WINDOW);
     $body = get_body();
     $username = sanitize_string($body["username"] ?? "");
     $email = strtolower(sanitize_string($body["email"] ?? ""));
@@ -914,7 +926,10 @@ switch ($action) {
       ->execute([$username, $email, $hash, $age, $gender, $playMode]);
     $user_id = (int) $pdo->lastInsertId();
 
-    increment_rate_limit($ip); // compter chaque inscription réussie pour limiter la création en masse
+    // Compter chaque inscription réussie pour limiter la création en masse.
+    // Compteur "reg:" séparé : une inscription ne consomme pas le quota de
+    // connexion, et un joueur bloqué en connexion peut encore s'inscrire.
+    increment_rate_limit("reg:$ip");
     session_regenerate_id(true);
     $_SESSION["user_id"] = $user_id;
     $_SESSION["username"] = $username;
@@ -2704,7 +2719,9 @@ switch ($action) {
           $title,
           $category,
         ]);
-        if ($pdo->rowCount() > 0) {
+        // rowCount() appartient au PDOStatement, pas au PDO : l'appeler sur
+        // l'objet PDO faisait échouer tout l'import.
+        if ($stmtChal->rowCount() > 0) {
           $imported["challenges"]++;
         }
       }
