@@ -104,3 +104,11 @@
 
 2026-05-29 | vault/ créé dans le sandbox bash temporaire mais jamais dans le vrai dossier projet Windows | Utiliser l'outil Write (chemins Windows) pour tous les fichiers qui doivent persister dans le workspace. Le sandbox bash (/sessions/...) est temporaire et non synchronisé avec le mount CIFS.
 
+
+2026-08-25 | vi.mock("../api/categories") alors que le hook importe "../features/categories/api" — le mock ne s'applique jamais, vi.mocked() enveloppe la vraie fonction et échoue sur .mockResolvedValue | Le chemin passé à vi.mock doit être le chemin résolu par le module testé, pas une supposition. Après toute réorganisation de dossiers, grepper vi.mock dans src/__tests__ et vérifier chaque chemin contre les imports réels du module sous test.
+
+2026-08-25 | Règle @typescript-eslint/no-unused-vars avec argsIgnorePattern "^_" placée uniquement dans le bloc files: ["**/*.tsx"] — les paramètres _userId des fichiers .ts remontaient en erreur | Dans un flat config ESLint, vérifier que chaque règle est bien dans un bloc dont le glob couvre tous les fichiers concernés. Les règles TypeScript vont dans le bloc **/*.{ts,tsx}, pas dans le bloc réservé au JSX.
+
+2026-08-25 | Script npm test pointant vers /tmp/ctf-test-modules/... (chemin d'un sandbox temporaire) — suite de tests inexécutable sur la machine de dev | Ne jamais figer un chemin absolu d'environnement d'exécution dans package.json. Utiliser le binaire résolu depuis node_modules (vitest run), et exécuter npm test après toute modification des scripts pour confirmer.
+
+2026-08-25 | Insertion d'une ligne via regex juste après "const [form, setForm] = useState<T>({" — la ligne a atterri au milieu de l'objet littéral, erreur de parsing | Pour insérer du code après une déclaration multi-lignes, ancrer sur la fin réelle de l'instruction (le "});" de fermeture), pas sur sa première ligne. Relancer eslint sur le fichier immédiatement après une édition scriptée.
