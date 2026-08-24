@@ -296,8 +296,10 @@ function LoginView({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
+      {/* Le backend n'accepte que l'email pour les joueurs ; seul le compte
+          administrateur se connecte par son identifiant (ALPHATEN). */}
       <Field
-        label="Email ou identifiant"
+        label="Email"
         type="text"
         value={identifier}
         onChange={setIdentifier}

@@ -118,19 +118,33 @@ echo "[init] Table active_event vérifiée.\n";
 try { $pdo->exec("ALTER TABLE users ADD COLUMN avatar_emoji VARCHAR(10) NOT NULL DEFAULT '🎯'"); echo "[init] Colonne avatar_emoji ajoutée.\n"; } catch (Exception $e) { echo "[init] avatar_emoji déjà présente.\n"; }
 try { $pdo->exec("ALTER TABLE users ADD COLUMN bio VARCHAR(200) NOT NULL DEFAULT ''"); echo "[init] Colonne bio ajoutée.\n"; } catch (Exception $e) { echo "[init] bio déjà présente.\n"; }
 
-// Réinitialiser l'état CTF à chaque démarrage du conteneur.
-// ON DUPLICATE KEY UPDATE garantit que les valeurs sont remises à zéro même si les lignes existent déjà
-// (évite le brouillage ou le podium résiduels d'une session précédente).
-$pdo->prepare(
-    "INSERT INTO ctf_state (state_key, state_value) VALUES
-     ('game_started', '0'),
-     ('scramble_started_at', ''),
-     ('podium_visible', '0'),
-     ('podium_revealed', '0'),
-     ('event_theme', '')
-     ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = NOW()"
-)->execute();
-echo "[init] État CTF réinitialisé.\n";
+// Créer les lignes d'état manquantes, sans écraser celles qui existent.
+// Le backend redémarre pour bien d'autres raisons qu'un nouvel événement
+// (crash, restart:always, mise à jour de configuration) : écraser game_started
+// à chaque démarrage mettait le CTF en pause à l'insu de l'administrateur.
+$stateRows = [
+    ['game_started', '0'],
+    ['scramble_started_at', ''],
+    ['podium_visible', '0'],
+    ['podium_revealed', '0'],
+    ['event_theme', ''],
+];
+
+// CTF_RESET_STATE=1 force la remise à zéro : à utiliser entre deux événements.
+$forceReset = getenv('CTF_RESET_STATE') === '1';
+
+$sql = $forceReset
+    ? "INSERT INTO ctf_state (state_key, state_value) VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = NOW()"
+    : "INSERT IGNORE INTO ctf_state (state_key, state_value) VALUES (?, ?)";
+
+$stateStmt = $pdo->prepare($sql);
+foreach ($stateRows as [$key, $value]) {
+    $stateStmt->execute([$key, $value]);
+}
+echo $forceReset
+    ? "[init] État CTF réinitialisé (CTF_RESET_STATE=1).\n"
+    : "[init] État CTF vérifié (valeurs existantes conservées).\n";
 
 // ─── Vues SQL (idempotentes) ──────────────────────────────────────────────────
 // CREATE OR REPLACE VIEW s'exécute à chaque démarrage du conteneur, ce qui

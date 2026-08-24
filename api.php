@@ -1377,15 +1377,15 @@ switch ($action) {
     exit();
 
   case "add_challenge":
-    require_admin();
+    $auth = require_admin();
     $body = get_body();
     $title = sanitize_string($body["title"] ?? "", 200);
     $category = sanitize_string($body["category"] ?? "", 30);
     $points = max(1, (int) ($body["points"] ?? 100));
     $desc = sanitize_string($body["description"] ?? "", 5000);
     $flag = trim($body["flag"] ?? "");
-    $diffMode = in_array($body["difficultyMode"] ?? "auto", ["auto", "easy", "medium", "hard"])
-      ? $body["difficultyMode"]
+    $diffMode = in_array($body["difficultyMode"] ?? "auto", ["auto", "easy", "medium", "hard"], true)
+      ? ($body["difficultyMode"] ?? "auto")
       : "auto";
     $diff = in_array($body["difficulty"] ?? null, ["easy", "medium", "hard"])
       ? $body["difficulty"]
@@ -1417,7 +1417,7 @@ switch ($action) {
     json_response(["ok" => true, "id" => $id]);
 
   case "update_challenge":
-    require_admin();
+    $auth = require_admin();
     $body = get_body();
     $id = (int) ($body["id"] ?? 0);
     $title = sanitize_string($body["title"] ?? "", 200);
@@ -1425,8 +1425,8 @@ switch ($action) {
     $points = max(1, (int) ($body["points"] ?? 100));
     $desc = sanitize_string($body["description"] ?? "", 5000);
     $flag = trim($body["flag"] ?? "");
-    $diffMode = in_array($body["difficultyMode"] ?? "auto", ["auto", "easy", "medium", "hard"])
-      ? $body["difficultyMode"]
+    $diffMode = in_array($body["difficultyMode"] ?? "auto", ["auto", "easy", "medium", "hard"], true)
+      ? ($body["difficultyMode"] ?? "auto")
       : "auto";
     $diff = in_array($body["difficulty"] ?? null, ["easy", "medium", "hard"])
       ? $body["difficulty"]
@@ -1471,7 +1471,7 @@ switch ($action) {
     json_response(["ok" => true]);
 
   case "delete_challenge":
-    require_admin();
+    $auth = require_admin();
     $body = get_body();
     $id = (int) ($body["id"] ?? 0);
     if (!$id) {
@@ -2873,7 +2873,7 @@ switch ($action) {
     ]);
 
   case "set_ctf_state":
-    require_admin();
+    $auth = require_admin();
     $body = get_body();
     $key = sanitize_string($body["key"] ?? "", 50);
     $value = sanitize_string($body["value"] ?? "", 100);

@@ -1,0 +1,27 @@
+# Le Dockerfile frontend fait COPY . . dans l'étage builder : sans cette liste,
+# le .env, l'historique git et les dépendances locales entrent dans le contexte
+# de build et se retrouvent dans une couche intermédiaire.
+
+.env
+.env.*
+!.env.example
+
+.git
+.gitignore
+
+node_modules
+dist
+
+backups
+uploads
+
+tasks
+markdown
+archive
+sql/archive
+
+*.log
+.vscode
+.idea
+.DS_Store
+Thumbs.db
