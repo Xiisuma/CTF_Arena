@@ -5,7 +5,7 @@ import { useRanking } from "../features/ranking/useRanking";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock("../api/ranking", () => ({
+vi.mock("../features/ranking/api", () => ({
   getRanking: vi.fn(),
   getTeamRanking: vi.fn(),
 }));

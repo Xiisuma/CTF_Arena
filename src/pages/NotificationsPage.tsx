@@ -310,15 +310,16 @@ function NotifRow({
   onClick?: () => void;
 }) {
   const isFriendRequest = notif.type === "friend_request";
-  return (
-    <div
-      className={`group flex items-start gap-4 rounded-2xl border px-5 py-4 transition ${
-        notif.read
-          ? "border-primary bg-card"
-          : `border ${NOTIF_TYPE_BG[notif.type]} shadow-theme`
-      } ${isFriendRequest ? "cursor-pointer hover:bg-card-hover" : ""}`}
-      onClick={isFriendRequest ? onClick : undefined}
-    >
+  const rowClass = `group flex items-start gap-4 rounded-2xl border px-5 py-4 transition ${
+    notif.read
+      ? "border-primary bg-card"
+      : `border ${NOTIF_TYPE_BG[notif.type]} shadow-theme`
+  } ${isFriendRequest ? "cursor-pointer hover:bg-card-hover" : ""}`;
+
+  // Seules les demandes d'ami sont cliquables : le rôle et les gestionnaires
+  // sont statiques dans chaque branche plutôt que conditionnels sur un seul div.
+  const body = (
+    <>
       <div
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-xl ${
           notif.read ? "border-primary bg-input" : NOTIF_TYPE_BG[notif.type]
@@ -363,6 +364,27 @@ function NotifRow({
           🗑️
         </button>
       </div>
-    </div>
+    </>
   );
+
+  if (isFriendRequest) {
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        className={rowClass}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onClick?.();
+          }
+        }}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return <div className={rowClass}>{body}</div>;
 }

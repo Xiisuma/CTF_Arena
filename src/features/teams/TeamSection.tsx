@@ -1,5 +1,5 @@
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ConfirmModal } from "../../shared/ui/ConfirmModal";
 import { useConfirm } from "../../shared/hooks/useConfirm";
 import {
@@ -18,6 +18,7 @@ import type { Team, TeamRole, TeamMemberWithStats } from "../../types";
 const TEAM_EMOJIS = ["🛡️","⚔️","🔥","💎","🎯","🚀","🐉","🦅","🌟","💀","🤖","🔮","🏴","🦾","🧠","🌊","⚡","🎖️","🏆","👾"];
 
 export function TeamSection({ userId }: { userId: string }) {
+  const uid = useId();
   const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [myRole, setMyRole] = useState<TeamRole | null>(null);
   const [members, setMembers] = useState<TeamMemberWithStats[]>([]);
@@ -247,8 +248,12 @@ export function TeamSection({ userId }: { userId: string }) {
             <h3 className="mb-5 text-xl font-bold text-primary">Créer une team</h3>
             <div className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">Icône</label>
-                <div className="flex flex-wrap gap-2 rounded-xl border border-primary bg-input p-3">
+                <span id={`${uid}-emoji`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">Icône</span>
+                <div
+                  role="group"
+                  aria-labelledby={`${uid}-emoji`}
+                  className="flex flex-wrap gap-2 rounded-xl border border-primary bg-input p-3"
+                >
                   {TEAM_EMOJIS.map((e) => (
                     <button key={e} type="button"
                       onClick={() => setCreateForm((f) => ({ ...f, emoji: e }))}
@@ -259,14 +264,14 @@ export function TeamSection({ userId }: { userId: string }) {
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">Nom</label>
-                <input value={createForm.name} onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                <label htmlFor={`${uid}-name`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">Nom</label>
+                <input id={`${uid}-name`} value={createForm.name} onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
                   className="w-full rounded-xl border border-secondary bg-input px-4 py-2 text-primary outline-none focus:ring-2 focus:ring-accent-primary/40"
                   maxLength={40} />
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">Description</label>
-                <textarea value={createForm.description} onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                <label htmlFor={`${uid}-description`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">Description</label>
+                <textarea id={`${uid}-description`} value={createForm.description} onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
                   rows={2}
                   className="w-full rounded-xl border border-secondary bg-input px-4 py-2 text-primary outline-none focus:ring-2 focus:ring-accent-primary/40"
                   maxLength={200} />

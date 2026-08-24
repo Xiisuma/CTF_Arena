@@ -3,7 +3,7 @@
  * ProfilePage.tsx v4.0 — delegated to src/components/profile/
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getChallenges, getUserFlags } from "../features/challenges/api";
 import { useAuth } from "../features/auth/AuthContext";
@@ -193,6 +193,7 @@ interface EditProfileProps {
 }
 
 function EditProfileSection({ avatarEmoji, setAvatarEmoji, bio, setBio, saving, saveOk, onSave }: EditProfileProps) {
+  const uid = useId();
   return (
     <div className="space-y-5">
       <div className="rounded-2xl border border-primary bg-card p-5 shadow-theme">
@@ -200,10 +201,17 @@ function EditProfileSection({ avatarEmoji, setAvatarEmoji, bio, setBio, saving, 
 
         {/* Avatar picker */}
         <div className="mb-4">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+          <span
+            id={`${uid}-avatar`}
+            className="mb-2 block text-xs font-semibold uppercase tracking-wider text-tertiary"
+          >
             Avatar
-          </label>
-          <div className="flex flex-wrap gap-2 rounded-xl border border-primary bg-input p-3">
+          </span>
+          <div
+            role="group"
+            aria-labelledby={`${uid}-avatar`}
+            className="flex flex-wrap gap-2 rounded-xl border border-primary bg-input p-3"
+          >
             {AVATAR_EMOJIS.map((e) => (
               <button
                 key={e}
@@ -219,10 +227,14 @@ function EditProfileSection({ avatarEmoji, setAvatarEmoji, bio, setBio, saving, 
 
         {/* Bio */}
         <div className="mb-5">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+          <label
+            htmlFor={`${uid}-bio`}
+            className="mb-2 block text-xs font-semibold uppercase tracking-wider text-tertiary"
+          >
             Biographie <span className="normal-case font-normal">({bio.length}/200)</span>
           </label>
           <textarea
+            id={`${uid}-bio`}
             value={bio}
             onChange={(e) => setBio(e.target.value.slice(0, 200))}
             rows={3}

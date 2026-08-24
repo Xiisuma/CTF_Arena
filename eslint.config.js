@@ -24,6 +24,15 @@ export default tseslint.config(
       "react-hooks/rules-of-hooks": "error",
       // Dépendances manquantes ou superflues dans useEffect/useCallback/useMemo
       "react-hooks/exhaustive-deps": "error",
+
+      // ─── TypeScript : relâché pour migration progressive ──────────────────
+      // Le préfixe _ marque un paramètre volontairement inutilisé (signature
+      // imposée par un appelant ou conservée pour compatibilité).
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
 
@@ -56,9 +65,6 @@ export default tseslint.config(
       // tabIndex positif (nuit à l'ordre de navigation)
       "jsx-a11y/tabindex-no-positive": "warn",
 
-      // ─── TypeScript : relâché pour migration progressive ──────────────────
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
     languageOptions: {
       parserOptions: {

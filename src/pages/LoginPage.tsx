@@ -187,6 +187,7 @@ function GenderSelector({
   onChange: (v: Gender) => void;
   error?: string;
 }) {
+  const uid = useId();
   const options: { value: Gender; label: string; icon: React.ReactNode }[] = [
     { value: "male",   label: "Homme",  icon: <IconMale /> },
     { value: "female", label: "Femme",  icon: <IconFemale /> },
@@ -195,12 +196,19 @@ function GenderSelector({
 
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-semibold uppercase tracking-widest text-tertiary">
+      <span
+        id={`${uid}-gender`}
+        className="block text-xs font-semibold uppercase tracking-widest text-tertiary"
+      >
         Genre <span className="text-rose-400">*</span>
-      </label>
-      <div className={`grid grid-cols-3 gap-2 rounded-xl transition-all ${
-        error ? "ring-1 ring-rose-500/40" : ""
-      }`}>
+      </span>
+      <div
+        role="group"
+        aria-labelledby={`${uid}-gender`}
+        className={`grid grid-cols-3 gap-2 rounded-xl transition-all ${
+          error ? "ring-1 ring-rose-500/40" : ""
+        }`}
+      >
         {options.map((opt) => (
           <button
             key={opt.value}
@@ -349,6 +357,7 @@ function PlayModeSelector({
   onChange: (v: PlayMode) => void;
   error?: string;
 }) {
+  const uid = useId();
   const options: { value: PlayMode; emoji: string; label: string; desc: string }[] = [
     {
       value: "solo",
@@ -366,10 +375,17 @@ function PlayModeSelector({
 
   return (
     <div className="space-y-1.5">
-      <label className="block text-xs font-semibold uppercase tracking-widest text-tertiary">
+      <span
+        id={`${uid}-playmode`}
+        className="block text-xs font-semibold uppercase tracking-widest text-tertiary"
+      >
         Mode de jeu <span className="text-rose-400">*</span>
-      </label>
-      <div className={`grid grid-cols-2 gap-2 ${error ? "ring-1 ring-rose-500/40 rounded-xl" : ""}`}>
+      </span>
+      <div
+        role="group"
+        aria-labelledby={`${uid}-playmode`}
+        className={`grid grid-cols-2 gap-2 ${error ? "ring-1 ring-rose-500/40 rounded-xl" : ""}`}
+      >
         {options.map((opt) => (
           <button
             key={opt.value}

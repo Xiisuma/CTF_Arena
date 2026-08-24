@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { CATEGORIES } from "../categories/store";
 import {
   CONDITION_ICONS,
@@ -39,6 +39,7 @@ export function AchievementFormModal({
   onClose: () => void;
 }) {
   const [form, setForm] = useState<FormState>(() => buildInitialForm(initial));
+  const uid = useId();
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -70,10 +71,14 @@ export function AchievementFormModal({
         </h3>
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-icon`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Icône
             </label>
-            <div className="flex flex-wrap gap-2 rounded-xl border border-primary bg-input p-3">
+            <div
+              role="group"
+              aria-label="Icônes prédéfinies"
+              className="flex flex-wrap gap-2 rounded-xl border border-primary bg-input p-3"
+            >
               {DEFAULT_ICONS.map((emoji) => (
                 <button
                   key={emoji}
@@ -87,6 +92,7 @@ export function AchievementFormModal({
                 </button>
               ))}
               <input
+                id={`${uid}-icon`}
                 value={form.icon}
                 onChange={(e) => set("icon", e.target.value)}
                 className="w-16 rounded-lg border border-secondary bg-card px-2 py-1 text-center text-lg text-primary outline-none"
@@ -97,10 +103,11 @@ export function AchievementFormModal({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-title`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Titre
             </label>
             <input
+              id={`${uid}-title`}
               value={form.title}
               onChange={(e) => set("title", e.target.value)}
               className={inputCls}
@@ -109,10 +116,11 @@ export function AchievementFormModal({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-description`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Description
             </label>
             <textarea
+              id={`${uid}-description`}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
               rows={2}
@@ -122,10 +130,11 @@ export function AchievementFormModal({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-condition`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Condition de déblocage
             </label>
             <select
+              id={`${uid}-condition`}
               value={form.condition}
               onChange={(e) => set("condition", e.target.value as AchievementConditionType)}
               className={inputCls}
@@ -140,10 +149,11 @@ export function AchievementFormModal({
 
           {!NO_VALUE_CONDITIONS.includes(form.condition) && (
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+              <label htmlFor={`${uid}-value`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Seuil requis
               </label>
               <input
+                id={`${uid}-value`}
                 type="number"
                 min={1}
                 value={form.conditionValue}
@@ -155,10 +165,11 @@ export function AchievementFormModal({
 
           {form.condition === "category_flags" && (
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+              <label htmlFor={`${uid}-category`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Catégorie ciblée
               </label>
               <select
+                id={`${uid}-category`}
                 value={form.conditionCategory}
                 onChange={(e) => set("conditionCategory", e.target.value)}
                 className={inputCls}

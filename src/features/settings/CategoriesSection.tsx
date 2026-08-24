@@ -185,10 +185,11 @@ export default function CategoriesSection() {
           <p className="text-sm text-tertiary">Aucune catégorie. Créez-en une !</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div role="list" className="space-y-2">
           {categories.map((cat, i) => (
             <div
               key={cat.id}
+              role="listitem"
               draggable
               onDragStart={() => handleDragStart(cat.id)}
               onDragOver={(e) => handleDragOver(e, cat.id)}

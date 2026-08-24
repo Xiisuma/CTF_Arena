@@ -43,12 +43,15 @@ export function ConfirmModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-title"
+      role="presentation"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="w-full max-w-sm rounded-2xl border border-primary bg-card p-6 shadow-theme">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-title"
+        className="w-full max-w-sm rounded-2xl border border-primary bg-card p-6 shadow-theme"
+      >
         <h3 id="confirm-title" className="mb-2 text-lg font-bold text-primary">
           {title}
         </h3>

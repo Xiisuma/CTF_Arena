@@ -1,5 +1,5 @@
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { renderMarkdown } from "../../shared/lib/renderMarkdown";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -53,6 +53,7 @@ export function CategoryModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const uid = useId();
 
   const inputCls =
     "w-full rounded-xl border border-secondary bg-input px-4 py-2.5 text-primary outline-none focus:ring-2 focus:ring-accent-primary/40 text-sm";
@@ -64,7 +65,7 @@ export function CategoryModal({
 
   const isIdValid =
     !isNew ||
-    (/^[A-ZÀ-Ÿa-z0-9_\-]+$/u.test(form.id.trim()) && form.id.trim().length >= 2);
+    (/^[A-ZÀ-Ÿa-z0-9_-]+$/u.test(form.id.trim()) && form.id.trim().length >= 2);
 
   const handleSave = async () => {
     if (!isValid || !isIdValid) return;
@@ -115,15 +116,16 @@ export function CategoryModal({
           {/* ID (uniquement à la création) */}
           {isNew && (
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+              <label htmlFor={`${uid}-id`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Identifiant unique <span className="text-rose-400">*</span>
               </label>
               <input
+                id={`${uid}-id`}
                 value={form.id}
                 onChange={(e) =>
                   setForm((f) => ({
                     ...f,
-                    id: e.target.value.toUpperCase().replace(/[^A-ZÀ-Ÿ0-9_\-]/gi, ""),
+                    id: e.target.value.toUpperCase().replace(/[^A-ZÀ-Ÿ0-9_-]/gi, ""),
                   }))
                 }
                 className={inputCls}
@@ -139,10 +141,11 @@ export function CategoryModal({
 
           {/* Nom */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-name`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Nom affiché <span className="text-rose-400">*</span>
             </label>
             <input
+              id={`${uid}-name`}
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               className={inputCls}
@@ -155,10 +158,14 @@ export function CategoryModal({
           <div className="grid grid-cols-2 gap-4">
             {/* Icône */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+              <label htmlFor={`${uid}-icon`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Icône <span className="text-rose-400">*</span>
               </label>
-              <div className="flex flex-wrap gap-1.5 rounded-xl border border-primary bg-input p-3 mb-2">
+              <div
+                role="group"
+                aria-label="Icônes suggérées"
+                className="flex flex-wrap gap-1.5 rounded-xl border border-primary bg-input p-3 mb-2"
+              >
                 {SUGGESTED_ICONS.map((ic) => (
                   <button
                     key={ic}
@@ -176,6 +183,7 @@ export function CategoryModal({
                 ))}
               </div>
               <input
+                id={`${uid}-icon`}
                 value={form.icon}
                 onChange={(e) => setForm((f) => ({ ...f, icon: e.target.value }))}
                 className={inputCls}
@@ -197,10 +205,14 @@ export function CategoryModal({
 
             {/* Couleur */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+              <label htmlFor={`${uid}-color`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Couleur <span className="text-rose-400">*</span>
               </label>
-              <div className="flex flex-wrap gap-1.5 rounded-xl border border-primary bg-input p-3 mb-2">
+              <div
+                role="group"
+                aria-label="Couleurs suggérées"
+                className="flex flex-wrap gap-1.5 rounded-xl border border-primary bg-input p-3 mb-2"
+              >
                 {SUGGESTED_COLORS.map((c) => (
                   <button
                     key={c}
@@ -219,6 +231,7 @@ export function CategoryModal({
               <div className="flex items-center gap-2">
                 <input
                   type="color"
+                  aria-label="Sélecteur de couleur"
                   value={form.color}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, color: e.target.value }))
@@ -226,6 +239,7 @@ export function CategoryModal({
                   className="h-9 w-9 cursor-pointer rounded-lg border border-secondary bg-input p-0.5"
                 />
                 <input
+                  id={`${uid}-color`}
                   value={form.color}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, color: e.target.value }))
@@ -241,10 +255,11 @@ export function CategoryModal({
 
           {/* Description courte */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-description`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Description courte (texte brut)
             </label>
             <textarea
+              id={`${uid}-description`}
               value={form.description}
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value }))
@@ -262,7 +277,10 @@ export function CategoryModal({
           {/* Description Markdown */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <label className="text-xs font-semibold uppercase tracking-wider text-tertiary">
+              <label
+                htmlFor={`${uid}-descriptionMd`}
+                className="text-xs font-semibold uppercase tracking-wider text-tertiary"
+              >
                 Description riche (Markdown)
               </label>
               <button
@@ -310,6 +328,7 @@ export function CategoryModal({
               />
             ) : (
               <textarea
+                id={`${uid}-descriptionMd`}
                 ref={textareaRef}
                 value={form.descriptionMd}
                 onChange={(e) =>

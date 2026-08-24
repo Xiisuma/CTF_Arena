@@ -68,6 +68,6 @@ export function useWebSocket(onMessage: (msg: WSMessage) => void, userId?: strin
       clearTimeout(reconnectTimer);
       ws?.close();
     };
-  }, []);
+  }, [userId]);
 }
 

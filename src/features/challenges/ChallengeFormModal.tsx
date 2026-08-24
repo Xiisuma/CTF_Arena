@@ -1,5 +1,5 @@
 
-import { type ChangeEvent, useState } from "react";
+import { type ChangeEvent, useId, useState } from "react";
 import type { Challenge, DifficultyType } from "../../types";
 import {
   getDifficulty,
@@ -31,6 +31,7 @@ export function ChallengeFormModal({
     difficultyMode: initial?.difficultyMode ?? "auto",
     difficulty: initial?.difficulty ?? "medium",
   });
+  const uid = useId();
 
   // Fichiers existants : content vide + url ; nouveaux uploads : content base64
   const [files, setFiles] = useState<FileEntry[]>(
@@ -66,20 +67,22 @@ export function ChallengeFormModal({
         </h3>
         <div className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-title`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Titre
             </label>
             <input
+              id={`${uid}-title`}
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               className={inputCls}
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-points`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Points
             </label>
             <input
+              id={`${uid}-points`}
               type="number"
               min={1}
               value={form.points}
@@ -90,10 +93,10 @@ export function ChallengeFormModal({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <span id={`${uid}-difficulty`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Difficulté
-            </label>
-            <div className="flex gap-2 flex-wrap">
+            </span>
+            <div role="group" aria-labelledby={`${uid}-difficulty`} className="flex gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, difficultyMode: "auto" }))}
@@ -124,10 +127,11 @@ export function ChallengeFormModal({
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-description`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Description
             </label>
             <textarea
+              id={`${uid}-description`}
               value={form.description}
               onChange={(e) =>
                 setForm((f) => ({ ...f, description: e.target.value }))
@@ -137,10 +141,11 @@ export function ChallengeFormModal({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-flag`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Flag {initial ? "(laisser vide pour conserver)" : ""}
             </label>
             <input
+              id={`${uid}-flag`}
               value={form.flag}
               onChange={(e) => setForm((f) => ({ ...f, flag: e.target.value }))}
               className={inputCls}
@@ -149,10 +154,11 @@ export function ChallengeFormModal({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
+            <label htmlFor={`${uid}-files`} className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-tertiary">
               Fichiers
             </label>
             <input
+              id={`${uid}-files`}
               type="file"
               multiple
               onChange={handleFileUpload}

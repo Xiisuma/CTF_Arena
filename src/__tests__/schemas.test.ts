@@ -1,5 +1,5 @@
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   ChallengeSchema,
   FlagSubmissionSchema,
@@ -17,7 +17,8 @@ describe("validate()", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const data = { id: "1", name: "Web", description: "", descriptionMd: "", icon: "🌐", color: "#fff", sortOrder: 1 };
     const result = validate(CategoryInfoSchema, data, "test");
-    expect(result).toBe(data);
+    // validate() renvoie result.data (valeur normalisée par Zod), pas la référence d'origine
+    expect(result).toEqual(data);
   });
 
   it("retourne la donnée même si le schéma échoue (non-cassant)", () => {
@@ -73,8 +74,7 @@ describe("ChallengeSchema", () => {
   });
 
   it("refuse si title manque", () => {
-    const { title: _, ...noTitle } = valid;
-    const result = ChallengeSchema.safeParse(noTitle);
+    const { title: _title, ...noTitle } = valid;
     // title est coercé en string donc "" — vérifie au moins que le parse ne crashe pas
     expect(() => ChallengeSchema.safeParse(noTitle)).not.toThrow();
   });

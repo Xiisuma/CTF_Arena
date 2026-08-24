@@ -29,12 +29,20 @@ export function ChallengeCard({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={`group relative flex flex-col rounded-2xl border p-5 shadow-theme transition cursor-pointer ${
         solved
           ? "border-emerald-500/30 bg-emerald-500/5"
           : "border-primary bg-card hover:bg-card-hover"
       }`}
       onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
     >
       {solved && (
         <div className="absolute right-3 top-3 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-xs">
@@ -58,19 +66,22 @@ export function ChallengeCard({
           )}
         </div>
         {isAdmin && (
-          <div
-            className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
-              onClick={onEdit}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
               aria-label="Modifier le challenge"
               className="rounded-lg border border-primary bg-input px-2 py-1 text-xs text-secondary hover:bg-card"
             >
               ✏️
             </button>
             <button
-              onClick={onDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
               aria-label="Supprimer le challenge"
               className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-xs text-rose-300 hover:bg-rose-500/20"
             >

@@ -5,8 +5,8 @@ import { useChallenges } from "../features/challenges/useChallenges";
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
-vi.mock("../api/categories", () => ({ getCategories: vi.fn() }));
-vi.mock("../api/challenges",  () => ({ getChallenges:  vi.fn() }));
+vi.mock("../features/categories/api", () => ({ getCategories: vi.fn() }));
+vi.mock("../features/challenges/api", () => ({ getChallenges: vi.fn() }));
 
 import { getCategories } from "../features/categories/api";
 import { getChallenges }  from "../features/challenges/api";
