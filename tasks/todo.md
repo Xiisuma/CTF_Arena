@@ -160,3 +160,27 @@ TypeScript : 0 erreurs ✅
 - Tester un événement/mystère en conditions réelles
 - Le vault/ est maintenant présent dans le dossier projet
 
+
+## Préparation événement — état au 2026-08-25
+
+### Fait
+- [x] Chaîne de tests réparée : 82/82 tests, lint 0 erreur 0 warning, typecheck 0 erreur
+- [x] `npm audit` : 0 vulnérabilité (react-router 7.18.2, vite 7.3.6)
+- [x] `.env.example` créé — un clone neuf démarre sans connaissance préalable
+- [x] Sauvegarde et restauration : `scripts/backup-db.sh`, `restore-db.sh`, `backup-db.ps1`
+- [x] HTTPS : `docker-compose.tls.yml` + `Caddyfile` (Let's Encrypt automatique)
+- [x] nginx relaie le scheme client — cookie de session `Secure` derrière un proxy TLS
+- [x] Volume `logs_data` — les journaux survivent aux rebuilds
+- [x] Seuils de rate limiting réglables par variable d'environnement
+- [x] `ws-server` : sonde `/health` + healthcheck, comparaison du secret à durée constante
+- [x] Bug : création/modification/suppression de challenge renvoyait 500 (`$auth` non initialisé)
+- [x] Bug : `init.php` remettait `game_started` à 0 à chaque redémarrage du backend
+- [x] Libellé du champ de connexion aligné sur ce que le backend accepte
+- [x] Parcours complet validé sur une stack neuve : admin, catégorie, challenge, joueur, flag, classement
+
+### Reste à faire avant l'événement
+- [ ] Créer les catégories et les challenges (contenu de l'épreuve)
+- [ ] Déployer derrière HTTPS avec un vrai domaine, régler `FRONTEND_URL` et `ALLOWED_ORIGINS` en https
+- [ ] Planifier la sauvegarde toutes les 15 minutes et vérifier une restauration réelle
+- [ ] Décider du seuil `FLAG_ATTEMPT_MAX` (5 par minute est serré pour un joueur qui cherche le format)
+- [ ] Répétition générale avec 3 à 5 comptes réels
