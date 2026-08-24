@@ -122,3 +122,11 @@
 2026-08-25 | Le champ de connexion était étiqueté "Email ou identifiant" alors que le backend n'accepte que l'email pour les joueurs | Quand un libellé d'interface décrit ce qu'accepte une API, vérifier le contrat côté serveur avant de le rédiger. Un libellé plus large que la validation réelle se paie en questions des utilisateurs le jour J.
 
 2026-08-25 | Passer du code PHP contenant \n dans une chaîne via un heredoc python : le \ est réduit à \ avant python, le remplacement ne matche jamais | Pour patcher du code contenant des séquences d'échappement, découper par numéros de ligne (find sur une ligne-ancre) plutôt que par remplacement de bloc, ou composer le backslash avec chr(92).
+
+2026-08-25 | Derrière ngrok, nginx voyait la passerelle Docker comme client : rate limiting mutualisé, cinq mauvais mots de passe bloquaient tout le monde | Derrière un proxy, toujours vérifier quelle IP arrive réellement en base (SELECT ip FROM rate_limits) avant de considérer un compteur par IP comme fonctionnel. set_real_ip_from limité aux plages privées + real_ip_header X-Forwarded-For.
+
+2026-08-25 | increment_rate_limit appelé sur inscription réussie avec le compteur des connexions : sur un événement sur site, tous les joueurs sortent par une IP publique unique, donc 6e inscription refusée | Un compteur anti-abus doit avoir sa propre clé et son propre seuil par usage. Toujours se demander « combien de personnes partagent cette clé le jour J ? » avant de fixer un seuil par IP.
+
+2026-08-25 | $pdo->rowCount() au lieu de $stmt->rowCount() dans import_data — import de contenu cassé, erreur 500 systématique | rowCount() appartient à PDOStatement. Les erreurs de ce type ne se voient qu'à l'exécution du chemin concerné : tout endpoint jamais joué en test est un endpoint non vérifié.
+
+2026-08-25 | Le harness de test renvoyait des faux positifs (mauvais noms de paramètres, mauvaise clé de réponse) qui masquaient les vrais bugs | Avant d'accuser le code, vérifier le contrat réel côté serveur (grep du case dans api.php). Un échec de test se qualifie d'abord comme bug du test ou bug du code, jamais l'inverse par défaut.
