@@ -112,3 +112,13 @@
 2026-08-25 | Script npm test pointant vers /tmp/ctf-test-modules/... (chemin d'un sandbox temporaire) — suite de tests inexécutable sur la machine de dev | Ne jamais figer un chemin absolu d'environnement d'exécution dans package.json. Utiliser le binaire résolu depuis node_modules (vitest run), et exécuter npm test après toute modification des scripts pour confirmer.
 
 2026-08-25 | Insertion d'une ligne via regex juste après "const [form, setForm] = useState<T>({" — la ligne a atterri au milieu de l'objet littéral, erreur de parsing | Pour insérer du code après une déclaration multi-lignes, ancrer sur la fin réelle de l'instruction (le "});" de fermeture), pas sur sa première ligne. Relancer eslint sur le fichier immédiatement après une édition scriptée.
+
+2026-08-25 | require_admin() appelé sans récupérer son retour, puis $auth["username"] lu plus bas — log_activity() type $username en string, donc TypeError et 500 sur add_challenge / update_challenge / delete_challenge | Un helper qui retourne un tableau doit toujours être assigné : `$auth = require_admin();`. Après ajout d'un appel à log_activity dans un case, vérifier que $auth y est bien initialisé (grep "require_admin();" suivi de "$auth[").
+
+2026-08-25 | init.php réinitialisait ctf_state à chaque démarrage du conteneur — un simple restart du backend remettait game_started à 0 et mettait le CTF en pause sans que personne ne le voie | Un script d'init s'exécute à chaque démarrage, pas une seule fois : il crée ce qui manque (INSERT IGNORE), il n'écrase pas l'état de production. Toute remise à zéro doit être explicite (variable d'environnement ou action admin).
+
+2026-08-25 | Bugs invisibles en local car la base contenait déjà les données ; découverts seulement en clonant le projet à vide et en jouant le parcours complet | Avant un événement, monter une stack neuve depuis .env.example sur un projet Docker séparé (-p) et rejouer le parcours de bout en bout : login admin, création catégorie et challenge, inscription joueur, flag faux, flag bon, rejeu, classement, redémarrage backend.
+
+2026-08-25 | Le champ de connexion était étiqueté "Email ou identifiant" alors que le backend n'accepte que l'email pour les joueurs | Quand un libellé d'interface décrit ce qu'accepte une API, vérifier le contrat côté serveur avant de le rédiger. Un libellé plus large que la validation réelle se paie en questions des utilisateurs le jour J.
+
+2026-08-25 | Passer du code PHP contenant \n dans une chaîne via un heredoc python : le \ est réduit à \ avant python, le remplacement ne matche jamais | Pour patcher du code contenant des séquences d'échappement, découper par numéros de ligne (find sur une ligne-ancre) plutôt que par remplacement de bloc, ou composer le backslash avec chr(92).
