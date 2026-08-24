@@ -5,10 +5,11 @@
 # ============================================================
 
 # ─── SECRETS — ne jamais commiter ────────────────────────────
+# Toute variante de .env est ignorée (.env.bak, .env.old, .env.prod…),
+# sauf le modèle sans secret.
 .env
-.env.local
-.env.production
-.env.*.local
+.env.*
+!.env.example
 
 # ─── Dépendances Node ─────────────────────────────────────────
 node_modules/
