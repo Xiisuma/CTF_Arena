@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="CTF Arena">
+  <title>CTF Arena</title>
+  <defs>
+    <linearGradient id="mark-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1625"/>
+      <stop offset="1" stop-color="#0d0b14"/>
+    </linearGradient>
+    <linearGradient id="mark-flag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="mark-ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity=".35"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="1" y="1" width="62" height="62" rx="16" fill="url(#mark-bg)"/>
+  <rect x="1.75" y="1.75" width="60.5" height="60.5" rx="15.25" fill="none"
+        stroke="url(#mark-ring)" stroke-width="1.5"/>
+
+  <!-- Mât -->
+  <path d="M21 12.5 V53" stroke="#a78bfa" stroke-width="3.2" stroke-linecap="round"/>
+  <circle cx="21" cy="10.5" r="2.1" fill="#a78bfa"/>
+
+  <!-- Drapeau à queue d'aronde -->
+  <path d="M22.6 14 H50 L43.5 24.5 L50 35 H22.6 Z" fill="url(#mark-flag)"/>
+
+  <!-- Accolades du format de flag, en réserve dans le drapeau -->
+  <g stroke="#0d0b14" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M32.9 17.6 q-2.4 0 -2.4 2.6 v1.8 q0 2.5 -2.2 2.5 q2.2 0 2.2 2.5 v1.8 q0 2.6 2.4 2.6"/>
+    <path d="M38.3 17.6 q2.4 0 2.4 2.6 v1.8 q0 2.5 2.2 2.5 q-2.2 0 -2.2 2.5 v1.8 q0 2.6 -2.4 2.6"/>
+  </g>
+
+  <!-- Socle -->
+  <path d="M14 53 H28" stroke="#8b5cf6" stroke-width="3.2" stroke-linecap="round" opacity=".85"/>
+</svg>

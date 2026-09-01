@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" width="320" height="80" role="img" aria-label="CTF Arena">
+  <title>CTF Arena</title>
+  <defs>
+    <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a1625"/>
+      <stop offset="1" stop-color="#0d0b14"/>
+    </linearGradient>
+    <linearGradient id="logo-flag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <linearGradient id="logo-ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity=".9"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity=".35"/>
+    </linearGradient>
+    <linearGradient id="logo-word" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d7cdf5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Marque -->
+  <g transform="translate(8 8)">
+    <rect x="1" y="1" width="62" height="62" rx="16" fill="url(#logo-bg)"/>
+    <rect x="1.75" y="1.75" width="60.5" height="60.5" rx="15.25" fill="none"
+          stroke="url(#logo-ring)" stroke-width="1.5"/>
+    <path d="M21 12.5 V53" stroke="#a78bfa" stroke-width="3.2" stroke-linecap="round"/>
+    <circle cx="21" cy="10.5" r="2.1" fill="#a78bfa"/>
+    <path d="M22.6 14 H50 L43.5 24.5 L50 35 H22.6 Z" fill="url(#logo-flag)"/>
+    <g stroke="#0d0b14" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <path d="M32.9 17.6 q-2.4 0 -2.4 2.6 v1.8 q0 2.5 -2.2 2.5 q2.2 0 2.2 2.5 v1.8 q0 2.6 2.4 2.6"/>
+      <path d="M38.3 17.6 q2.4 0 2.4 2.6 v1.8 q0 2.5 2.2 2.5 q-2.2 0 -2.2 2.5 v1.8 q0 2.6 -2.4 2.6"/>
+    </g>
+    <path d="M14 53 H28" stroke="#8b5cf6" stroke-width="3.2" stroke-linecap="round" opacity=".85"/>
+  </g>
+
+  <!-- Signature -->
+  <text x="88" y="42"
+        font-family="'Segoe UI', Inter, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        font-size="30" font-weight="800" letter-spacing="1.5" fill="url(#logo-word)">CTF ARENA</text>
+  <text x="90" y="60"
+        font-family="'Segoe UI', Inter, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif"
+        font-size="10.5" font-weight="600" letter-spacing="4.2" fill="#8b5cf6">CAPTURE THE FLAG</text>
+</svg>

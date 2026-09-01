@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="CTF Arena">
+  <title>CTF Arena</title>
+  <defs>
+    <linearGradient id="fav-flag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+  </defs>
+  <!-- Version simplifiée : à 16 px, les accolades et le liseré disparaissent -->
+  <rect width="32" height="32" rx="8" fill="#0d0b14"/>
+  <path d="M10 5.5 V27" stroke="#a78bfa" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M11.4 7 H26 L22 13.5 L26 20 H11.4 Z" fill="url(#fav-flag)"/>
+</svg>
