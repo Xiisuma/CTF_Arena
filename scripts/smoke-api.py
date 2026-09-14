@@ -1,6 +1,6 @@
 """Parcours de bout en bout de l'API CTF Arena.
 
-Crée un jeu de données de test (catégories, challenges, joueurs, équipe),
+Crée un jeu de données de test (catégories, challenges, joueurs),
 rejoue le parcours complet et vérifie chaque réponse. À lancer contre une
 instance jetable, jamais contre l'instance de l'événement : le script écrit
 en base et modifie l'état du CTF.
@@ -76,7 +76,7 @@ def main(admin_pw, tag):
         body = s.call("register", {
             "username": n, "email": f"{n}@audit.local",
             "password": "MotDePasse123!", "age": 22,
-            "gender": "other", "playMode": "solo",
+            "gender": "other",
         })
         ids[base] = (body.get("user") or {}).get("id")
         s.call("me")
@@ -142,31 +142,10 @@ def main(admin_pw, tag):
     if sent:
         p1.call("cancel_friend_request", {"requestId": sent[0]["id"]})
 
-    # ── Équipes (avant démarrage : le mode de jeu se fige ensuite) ────────
-    for s in (p1, p2, p3):
-        s.call("update_play_mode", {"playMode": "multiplayer"})
-    t = p1.call("create_team", {"name": "Auditeurs " + tag,
-                                "description": "equipe de test",
-                                "emoji": "🛠️", "isPublic": True}).get("teamId")
-    p1.call("get_user_team")
-    p1.call("get_teams")
-    p1.call("search_teams", query="&q=Auditeurs")
-    p2.call("join_team", {"teamId": t})
-    p3.call("join_team", {"teamId": t})
-    p1.call("get_team_members", query=f"&teamId={t}")
-    p1.call("promote_member", {"teamId": t, "targetId": ids["bravo"]})
-    p1.call("demote_member", {"teamId": t, "targetId": ids["bravo"]})
-    p1.call("update_team", {"teamId": t, "name": "Auditeurs v2 " + tag,
-                            "description": "maj", "emoji": "🛠️",
-                            "isPublic": False})
-    p1.call("kick_member", {"teamId": t, "targetId": ids["charlie"]})
-    p1.call("ban_member", {"teamId": t, "targetId": ids["bravo"]})
-    admin.call("add_team_member_admin", {"teamId": t, "userId": ids["charlie"]})
-    p3.call("leave_team")
-    p1.call("delete_team", {"teamId": t})
-    # Retour en solo : sans équipe, le mode multijoueur refuse les soumissions.
-    for s in (p1, p2, p3):
-        s.call("update_play_mode", {"playMode": "solo"})
+    # ── Actions retirées : doivent être refusées ─────────────────────────
+    for action in ("create_team", "get_teams", "join_team", "get_team_ranking",
+                   "update_play_mode"):
+        p1.call(action, {}, expect_ok=False, note="action retirée")
 
     # ── Démarrage du CTF ──────────────────────────────────────────────────
     admin.call("set_ctf_state", {"key": "game_started", "value": "1"})
@@ -190,7 +169,6 @@ def main(admin_pw, tag):
     p1.call("get_user_flags")
     admin.call("get_all_flags")
     p1.call("get_ranking")
-    p1.call("get_team_ranking")
     admin.call("get_podium")
 
     # ── Achievements ──────────────────────────────────────────────────────

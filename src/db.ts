@@ -10,6 +10,5 @@ export * from "./features/challenges/api";
 export * from "./features/ranking/api";
 export * from "./features/achievements/api";
 export * from "./features/friends/api";
-export * from "./features/teams/api";
 export * from "./infrastructure/api/utils";
 

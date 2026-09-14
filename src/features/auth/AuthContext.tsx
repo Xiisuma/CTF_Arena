@@ -24,7 +24,6 @@ export interface AuthUser {
   email: string | null;
   age: number | null;
   gender: "male" | "female" | "other" | null;
-  playMode: 'solo' | 'multiplayer';
   isAdmin: boolean;
   avatarEmoji: string;
   bio: string;
@@ -38,7 +37,6 @@ interface RegisterPayload {
   password: string;
   age: number;
   gender: "male" | "female" | "other";
-  playMode: 'solo' | 'multiplayer';
 }
 
 interface AuthContextValue {
@@ -101,8 +99,6 @@ interface RawApiUser {
   age?: number | null;
   gender?: string | null;
   isAdmin?: boolean;
-  playMode?: string;
-  play_mode?: string;
   avatarEmoji?: string;
   avatar_emoji?: string;
   bio?: string;
@@ -115,7 +111,6 @@ function normalizeUser(raw: RawApiUser): AuthUser {
     email: raw.email ?? null,
     age: raw.age ?? null,
     gender: (raw.gender as AuthUser["gender"]) ?? null,
-    playMode: (raw.playMode ?? raw.play_mode ?? 'solo') as 'solo' | 'multiplayer',
     isAdmin: Boolean(raw.isAdmin),
     avatarEmoji: (raw.avatarEmoji ?? raw.avatar_emoji ?? '🎯'),
     bio: raw.bio ?? '',
@@ -172,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const data = await apiFetch("register", {
           method: "POST",
-          body: JSON.stringify({ ...payload, play_mode: payload.playMode }),
+          body: JSON.stringify(payload),
         });
         if (!data.ok) return (data.error as string) ?? "Erreur d'inscription";
         setUser(normalizeUser(data.user as RawApiUser));

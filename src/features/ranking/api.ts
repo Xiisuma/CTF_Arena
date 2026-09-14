@@ -1,11 +1,10 @@
 
 import { apiFetch } from "../../infrastructure/api/client";
-import { normalizeTeam } from "../teams/api";
-import { RankingRowSchema, PlayerWithPointsSchema, TeamRankingRowSchema, validate, toRawArray } from "../../infrastructure/api/schemas";
-import type { RankingRow, TeamRankingRow, PlayerWithPoints } from "../../types";
+import { RankingRowSchema, PlayerWithPointsSchema, validate, toRawArray } from "../../infrastructure/api/schemas";
+import type { RankingRow, PlayerWithPoints } from "../../types";
 
 // Re-export for convenience (defined in types.ts)
-export type { RankingRow, TeamRankingRow, PlayerWithPoints };
+export type { RankingRow, PlayerWithPoints };
 
 export async function getRanking(): Promise<RankingRow[]> {
   const data = await apiFetch("get_ranking", { method: "GET" });
@@ -17,19 +16,6 @@ export async function getRanking(): Promise<RankingRow[]> {
       solved: Number(r.flags_found ?? r.solved ?? 0),
     };
     return validate(RankingRowSchema, result, "RankingRow");
-  });
-}
-
-export async function getTeamRanking(): Promise<TeamRankingRow[]> {
-  const data = await apiFetch("get_team_ranking", { method: "GET" });
-  if (!data.ok || !Array.isArray(data.ranking)) return [];
-  return toRawArray(data.ranking).map((r) => {
-    const result = {
-      points: Number(r.points),
-      solved: Number(r.solved),
-      memberCount: Number(r.memberCount),
-    };
-    return { team: normalizeTeam(r), ...validate(TeamRankingRowSchema, result, "TeamRankingRow") };
   });
 }
 

@@ -8,33 +8,21 @@ const POPUP_ACCENT: Record<NotifType, string> = {
   friend_flag:        "border-violet-500/40 bg-violet-500/10",
   friend_achievement: "border-amber-400/40 bg-amber-400/10",
   friend_request:     "border-blue-500/40 bg-blue-500/10",
-  team_flag:          "border-emerald-500/40 bg-emerald-500/10",
-  team_achievement:   "border-sky-500/40 bg-sky-500/10",
   rank1:              "border-yellow-400/40 bg-yellow-400/10",
-  team_join:          "border-pink-500/40 bg-pink-500/10",
-  team_role_change:   "border-cyan-500/40 bg-cyan-500/10",
 };
 
 const POPUP_LABEL: Record<NotifType, string> = {
   friend_flag:        "Ami · Énigme",
   friend_achievement: "Ami · Succès",
   friend_request:     "Ami · Demande",
-  team_flag:          "Team · Énigme",
-  team_achievement:   "Team · Succès",
   rank1:              "Classement",
-  team_join:          "Team · Nouveau membre",
-  team_role_change:   "Team · Rôle",
 };
 
 const POPUP_LABEL_COLOR: Record<NotifType, string> = {
   friend_flag:        "text-violet-300",
   friend_achievement: "text-amber-300",
   friend_request:     "text-blue-300",
-  team_flag:          "text-emerald-300",
-  team_achievement:   "text-sky-300",
   rank1:              "text-yellow-300",
-  team_join:          "text-pink-300",
-  team_role_change:   "text-cyan-300",
 };
 
 // ─── NotificationPopupContainer ───────────────────────────────────────────────

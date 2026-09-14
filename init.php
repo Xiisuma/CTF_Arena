@@ -199,41 +199,14 @@ FROM users u
 LEFT JOIN submissions s ON s.user_id = u.id
 LEFT JOIN challenges  c ON c.id      = s.challenge_id
 WHERE u.is_admin = 0
-  AND u.play_mode = 'solo'
 GROUP BY u.id, u.username
-ORDER BY total_points DESC, flags_found DESC");
-
-$pdo->exec("CREATE OR REPLACE VIEW v_team_ranking AS
-SELECT
-    t.id                            AS team_id,
-    t.name                          AS team_name,
-    t.emoji,
-    t.is_public,
-    t.owner_id,
-    t.created_at,
-    COUNT(DISTINCT ts.challenge_id) AS flags_found,
-    COALESCE(SUM(c.points), 0)      AS total_points,
-    COUNT(DISTINCT tm.user_id)      AS member_count
-FROM teams t
-LEFT JOIN team_submissions ts ON ts.team_id     = t.id
-LEFT JOIN challenges        c  ON c.id           = ts.challenge_id
-LEFT JOIN team_members      tm ON tm.team_id     = t.id
-GROUP BY t.id, t.name, t.emoji, t.is_public, t.owner_id, t.created_at
 ORDER BY total_points DESC, flags_found DESC");
 
 $pdo->exec("CREATE OR REPLACE VIEW v_most_flags AS
 SELECT
     u.id       AS user_id,
     u.username,
-    u.play_mode,
-    CASE
-        WHEN u.play_mode = 'solo' THEN
-            (SELECT COUNT(*) FROM submissions WHERE user_id = u.id)
-        ELSE
-            (SELECT COUNT(*) FROM team_submissions ts
-             JOIN team_members tm ON tm.team_id = ts.team_id
-             WHERE tm.user_id = u.id)
-    END AS flags_found
+    (SELECT COUNT(*) FROM submissions WHERE user_id = u.id) AS flags_found
 FROM users u
 WHERE u.is_admin = 0
 ORDER BY flags_found DESC");
@@ -249,6 +222,36 @@ echo "[init] Vues SQL recréées.\n";
 // ci-dessus ne la référencent plus, le DROP passe donc sans erreur.
 $pdo->exec("DROP TABLE IF EXISTS bonus_malus");
 $pdo->exec("DELETE FROM activity_logs WHERE type IN ('bonus_added', 'malus_added')");
+
+// ─── Retrait du système d'équipes ─────────────────────────────────────────────
+// Tous les joueurs jouent désormais seuls. Sur une base créée avant ce retrait :
+//   1. les flags validés en équipe sont rendus au joueur qui les a trouvés,
+//      pour qu'il garde ses points ;
+//   2. la vue, les tables d'équipe et la colonne play_mode sont supprimées,
+//      ainsi que les entrées de journal liées aux équipes.
+// Chaque étape est idempotente : un redémarrage ne refait rien.
+$hasTeamSubmissions = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'team_submissions'"
+)->fetchColumn();
+if ($hasTeamSubmissions) {
+    $moved = $pdo->exec(
+        "INSERT IGNORE INTO submissions (user_id, challenge_id, solve_time_ms, submitted_at)
+         SELECT solved_by, challenge_id, solve_time_ms, submitted_at FROM team_submissions"
+    );
+    echo "[init] Flags d'équipe rendus à leurs auteurs : $moved.\n";
+}
+$pdo->exec("DROP VIEW IF EXISTS v_team_ranking");
+$pdo->exec("DROP TABLE IF EXISTS team_submissions, team_bans, team_members, teams");
+$hasPlayMode = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'play_mode'"
+)->fetchColumn();
+if ($hasPlayMode) {
+    $pdo->exec("ALTER TABLE users DROP COLUMN play_mode");
+    echo "[init] Colonne users.play_mode supprimée.\n";
+}
+$pdo->exec("DELETE FROM activity_logs WHERE type LIKE 'team\\_%'");
 
 echo "[init] Initialisation terminée.\n";
 
