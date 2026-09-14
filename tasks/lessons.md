@@ -130,3 +130,9 @@
 2026-08-25 | $pdo->rowCount() au lieu de $stmt->rowCount() dans import_data — import de contenu cassé, erreur 500 systématique | rowCount() appartient à PDOStatement. Les erreurs de ce type ne se voient qu'à l'exécution du chemin concerné : tout endpoint jamais joué en test est un endpoint non vérifié.
 
 2026-08-25 | Le harness de test renvoyait des faux positifs (mauvais noms de paramètres, mauvaise clé de réponse) qui masquaient les vrais bugs | Avant d'accuser le code, vérifier le contrat réel côté serveur (grep du case dans api.php). Un échec de test se qualifie d'abord comme bug du test ou bug du code, jamais l'inverse par défaut.
+
+2026-09-14 | `getenv('CTF_RESET_STATE') ?: 'auto'` — en PHP "0" est falsy, donc CTF_RESET_STATE=0 retombait silencieusement sur auto | Ne jamais utiliser ?: sur une variable d'environnement qui peut valoir "0". Tester explicitement `=== false` et la chaîne vide.
+
+2026-09-14 | Test de crash via `docker exec … kill -9 1` : le noyau ignore SIGKILL envoyé au PID 1 depuis son propre namespace, le conteneur n'a jamais redémarré et le test passait sans rien vérifier. `docker kill` depuis l'hôte compte comme un arrêt manuel et n'est pas relancé non plus | Pour simuler un crash relancé par restart:always : `docker exec <c> kill -TERM 1`, puis vérifier que RestartCount a bien augmenté. Un test de résilience doit prouver que l'incident a eu lieu, pas seulement que l'état final est correct.
+
+2026-09-14 | Script de vérification lancé sur un conteneur hérité du passage précédent (créé avec CTF_RESET_STATE=1) : faux échecs | Chaque passage de test repart d'un état propre et explicite (recréation avec l'environnement par défaut, affichage de la variable réelle via docker inspect) avant le premier scénario.

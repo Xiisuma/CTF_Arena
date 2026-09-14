@@ -129,10 +129,14 @@ try {
 ";
 }
 
-// Créer les lignes d'état manquantes, sans écraser celles qui existent.
-// Le backend redémarre pour bien d'autres raisons qu'un nouvel événement
-// (crash, restart:always, mise à jour de configuration) : écraser game_started
-// à chaque démarrage mettait le CTF en pause à l'insu de l'administrateur.
+// ─── État du CTF ──────────────────────────────────────────────────────────────
+// Deux situations à ne pas confondre :
+//   - un rebuild (docker compose up --build) RECRÉE le conteneur : on repart
+//     sur un CTF non démarré ;
+//   - un crash relancé par restart:always REDÉMARRE le même conteneur : on
+//     conserve l'état, sinon la partie se met en pause en plein événement.
+// Le système de fichiers d'un conteneur survit à un redémarrage mais pas à une
+// recréation : un marqueur posé hors volume suffit à les distinguer.
 $stateRows = [
     ['game_started', '0'],
     ['scramble_started_at', ''],
@@ -141,8 +145,22 @@ $stateRows = [
     ['event_theme', ''],
 ];
 
-// CTF_RESET_STATE=1 force la remise à zéro : à utiliser entre deux événements.
-$forceReset = getenv('CTF_RESET_STATE') === '1';
+// CTF_RESET_STATE : auto (défaut) | 1 = toujours remettre à zéro | 0 = jamais.
+// 0 sert à recréer un conteneur en plein événement (changement de .env) sans
+// arrêter la partie.
+// Pas de ?: ici : en PHP, "0" est falsy et retomberait silencieusement sur auto.
+$rawResetMode = getenv('CTF_RESET_STATE');
+$resetMode = ($rawResetMode === false || trim($rawResetMode) === '')
+    ? 'auto'
+    : strtolower(trim($rawResetMode));
+$marker = '/var/lib/ctf_arena/container-initialized';
+$freshContainer = !file_exists($marker);
+
+$forceReset = match ($resetMode) {
+    '1', 'always' => true,
+    '0', 'never'  => false,
+    default       => $freshContainer,
+};
 
 $sql = $forceReset
     ? "INSERT INTO ctf_state (state_key, state_value) VALUES (?, ?)
@@ -153,9 +171,19 @@ $stateStmt = $pdo->prepare($sql);
 foreach ($stateRows as [$key, $value]) {
     $stateStmt->execute([$key, $value]);
 }
-echo $forceReset
-    ? "[init] État CTF réinitialisé (CTF_RESET_STATE=1).\n"
-    : "[init] État CTF vérifié (valeurs existantes conservées).\n";
+
+// Le marqueur n'est posé qu'une fois l'état écrit : si l'init échoue avant,
+// le prochain démarrage retentera la remise à zéro.
+if ($freshContainer) {
+    @mkdir(dirname($marker), 0755, true);
+    @file_put_contents($marker, date('c') . "\n");
+}
+
+if ($forceReset) {
+    echo "[init] État CTF réinitialisé (" . ($freshContainer ? "conteneur neuf" : "CTF_RESET_STATE=$resetMode") . ").\n";
+} else {
+    echo "[init] État CTF conservé (" . ($freshContainer ? "CTF_RESET_STATE=$resetMode" : "redémarrage du conteneur") . ").\n";
+}
 
 // ─── Vues SQL (idempotentes) ──────────────────────────────────────────────────
 // CREATE OR REPLACE VIEW s'exécute à chaque démarrage du conteneur, ce qui

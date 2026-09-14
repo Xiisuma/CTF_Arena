@@ -184,3 +184,35 @@ TypeScript : 0 erreurs ✅
 - [ ] Planifier la sauvegarde toutes les 15 minutes et vérifier une restauration réelle
 - [ ] Décider du seuil `FLAG_ATTEMPT_MAX` (5 par minute est serré pour un joueur qui cherche le format)
 - [ ] Répétition générale avec 3 à 5 comptes réels
+
+## Chantier 2026-09-14 — ordre : 2 → 7 → 8 → 1 → 4 → 5 → 3 → 6
+
+- [x] 2. CTF « non démarré » après un rebuild, sans casser la reprise après crash
+- [ ] 7. Supprimer bonus / malus (API, table, UI, calcul des scores)
+- [ ] 8. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
+- [ ] 1. Points dégressifs selon le nombre de résolutions
+- [ ] 4. Historique des flags testés par challenge (visible par le joueur seul)
+- [ ] 5. Rôle auteur : gère uniquement les challenges qu'il a créés
+- [ ] 3. Événement First Blood
+- [ ] 6. Challenge Mii
+
+### Plan — point 2
+Problème : depuis le 25/08, `init.php` conserve l'état (`INSERT IGNORE`) pour qu'un crash
+relancé par `restart: always` ne mette pas la partie en pause. Effet de bord : un rebuild
+repart lui aussi sur un CTF déjà en cours.
+
+Distinction retenue : un rebuild **recrée** le conteneur, un crash le **redémarre**.
+Le système de fichiers d'un conteneur survit à un redémarrage, pas à une recréation.
+
+1. `init.php` pose un marqueur hors volume (`/var/lib/ctf_arena/container-initialized`)
+2. `CTF_RESET_STATE=auto` (défaut) : pas de marqueur → remise à zéro + marqueur ; marqueur → état conservé
+3. `CTF_RESET_STATE=1` : remise à zéro systématique — `0` : jamais (recréer un conteneur en plein événement)
+4. Vérifier : restart → conservé ; crash (PID 1 tué) → conservé ; rebuild → remis à zéro ; `0` + rebuild → conservé
+
+### Vérification — point 2 (stack jetable `-p ctfp2`)
+- [x] restart → partie conservée
+- [x] crash réel (SIGTERM au PID 1, RestartCount +1) → partie conservée
+- [x] rebuild (conteneur recréé) → CTF non démarré
+- [x] recréation avec `CTF_RESET_STATE=0` → partie conservée
+- [x] `CTF_RESET_STATE=1` → remise à zéro même après un crash
+- [x] instance principale rebuildée : `gameStarted` true → false, journal « conteneur neuf »

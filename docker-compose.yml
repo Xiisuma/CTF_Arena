@@ -69,10 +69,12 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@ctf-arena.local}
 
-      # Mettre à 1 pour remettre l'état du CTF à zéro au prochain démarrage
-      # (game_started, podium, thème). Laisser vide pendant un événement :
-      # un redémarrage du backend ne doit pas mettre la partie en pause.
-      CTF_RESET_STATE: ${CTF_RESET_STATE:-0}
+      # État du CTF au démarrage (game_started, brouillage, podium, thème) :
+      #   auto — remis à zéro quand le conteneur est recréé (rebuild), conservé
+      #          quand il redémarre (crash, restart:always, reboot de l'hôte)
+      #   1    — toujours remis à zéro
+      #   0    — jamais : pour recréer le conteneur en plein événement
+      CTF_RESET_STATE: ${CTF_RESET_STATE:-auto}
 
       # Limitation de débit — réglable sans rebuild (voir .env.example)
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-5}
