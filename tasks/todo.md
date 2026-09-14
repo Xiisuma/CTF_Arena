@@ -188,13 +188,27 @@ TypeScript : 0 erreurs ✅
 ## Chantier 2026-09-14 — ordre : 2 → 7 → 8 → 1 → 4 → 5 → 3 → 6
 
 - [x] 2. CTF « non démarré » après un rebuild, sans casser la reprise après crash
-- [ ] 7. Supprimer bonus / malus (API, table, UI, calcul des scores)
-- [ ] 8. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
-- [ ] 1. Points dégressifs selon le nombre de résolutions
+
+Renumérotation du 14/09 (ordre d'exécution) :
+
+- [ ] 1. Supprimer bonus / malus (API, table, UI, calcul des scores)
+- [ ] 2. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
+- [ ] 3. Points dégressifs selon le nombre de résolutions
 - [ ] 4. Historique des flags testés par challenge (visible par le joueur seul)
 - [ ] 5. Rôle auteur : gère uniquement les challenges qu'il a créés
-- [ ] 3. Événement First Blood
-- [ ] 6. Challenge Mii
+- [ ] 6. Événement First Blood
+- [ ] 7. Challenge Mii
+
+### Plan — nouveau point 1 (branche `fix-suppression-bonus-malus` → PR vers `fix`)
+1. api.php : retirer les cases `add_bonus` / `add_malus`, leurs types de log, le `DELETE` dans
+   `reset_user_progress`, et le terme `bonus_malus` des 5 calculs de points
+2. init.php + sql/init/03_views.sql : `v_solo_ranking` sans bonus_malus ; init.php supprime la table
+   (`DROP TABLE IF EXISTS`) sur les bases existantes — vue recréée avant le DROP
+3. sql/init/01_tables.sql : retirer la table
+4. Front : `addBonusPoints` / `addMalusPoints`, boutons de PlayersSection, libellés du journal, texte du Guide
+5. scripts/smoke-api.py et README
+6. Vérifier : typecheck, lint, tests, stack jetable (init OK, table absente, classement et
+   `add_bonus` → action inconnue, smoke test sans erreur)
 
 ### Plan — point 2
 Problème : depuis le 25/08, `init.php` conserve l'état (`INSERT IGNORE`) pour qu'un crash

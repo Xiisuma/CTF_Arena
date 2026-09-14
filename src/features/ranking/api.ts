@@ -63,13 +63,3 @@ export async function setChallengeSolvedForUser(userId: string, challengeId: str
   return Boolean(data.ok);
 }
 
-export async function addBonusPoints(userId: string, points: number): Promise<boolean> {
-  const data = await apiFetch("add_bonus", { method: "POST", body: JSON.stringify({ userId, points }) });
-  return Boolean(data.ok);
-}
-
-export async function addMalusPoints(userId: string, points: number): Promise<boolean> {
-  const data = await apiFetch("add_malus", { method: "POST", body: JSON.stringify({ userId, points }) });
-  return Boolean(data.ok);
-}
-

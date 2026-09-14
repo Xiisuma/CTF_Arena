@@ -130,20 +130,6 @@ CREATE TABLE IF NOT EXISTS submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Flags validés — une ligne = un challenge résolu par un joueur.';
 
--- ─── Bonus / Malus ────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS bonus_malus (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id    INT UNSIGNED NOT NULL,
-    points     INT          NOT NULL,
-    reason     VARCHAR(255) NOT NULL DEFAULT '',
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT ck_bonus_malus_points CHECK (points != 0),
-    INDEX idx_bonus_malus_user_id (user_id),
-    CONSTRAINT fk_bonus_malus_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Ajustements manuels de score (bonus événementiels, pénalités triche).';
-
 -- ─── Achievements ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS achievements (

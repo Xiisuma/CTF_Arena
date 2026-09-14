@@ -309,7 +309,6 @@ Pour repartir d'une base propre : `docker compose down -v && docker compose up`
 | `challenges` | Énigmes (flag chiffré AES-256-GCM, difficulté auto/manuelle) |
 | `challenge_files` | Fichiers attachés aux challenges |
 | `submissions` | Soumissions réussies — pas de dénormalisation, JOIN challenges pour les points |
-| `bonus_malus` | Points bonus/malus attribués par l'admin |
 | `achievements` | Définitions des succès (11 types de conditions) |
 | `user_achievements` | Succès débloqués par joueur |
 | `friend_requests` | Demandes d'amis (pending / accepted / rejected) |
@@ -321,7 +320,7 @@ Pour repartir d'une base propre : `docker compose down -v && docker compose up`
 
 ### Vue `v_ranking`
 
-Classement calculé automatiquement : `total_points = SUM(c.points via JOIN challenges) + SUM(bonus_malus.points)`, trié par points puis par nombre de flags.
+Classement calculé automatiquement : `total_points = SUM(c.points via JOIN challenges)`, trié par points puis par nombre de flags.
 
 ### Difficulté des challenges
 
@@ -411,8 +410,7 @@ Toutes les requêtes passent par `POST /api.php` (ou `GET` pour les lectures) av
 | Action | Description |
 |--------|-------------|
 | `get_players` | Liste de tous les joueurs |
-| `add_bonus` / `add_malus` | ±25 pts |
-| `reset_user` | Effacer flags + bonus/malus |
+| `reset_user_progress` | Effacer flags et succès |
 | `delete_user` | Supprimer le compte |
 | `set_challenge_solved` | Cocher/décocher manuellement |
 
@@ -750,7 +748,7 @@ npm run build
 - Build Vite standard (chunks séparés) — compatible `script-src 'self'` CSP sans `unsafe-inline`
 
 **SQL — bonnes pratiques**
-- `CHECK` constraints sur les invariants métier (`points > 0`, `solve_time_ms >= 0`, `bonus_malus.points != 0`, `age BETWEEN 13 AND 120`)
+- `CHECK` constraints sur les invariants métier (`points > 0`, `solve_time_ms >= 0`, `age BETWEEN 13 AND 120`)
 - FK nommées (`CONSTRAINT fk_<table>_<ref>`) et UNIQUE nommées (`CONSTRAINT uq_<table>_<col>`) sur toutes les tables
 - Index composite `submissions(user_id, submitted_at DESC)` pour les classements
 - `COMMENT` sur chaque table pour la lisibilité du schéma

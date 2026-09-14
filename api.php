@@ -245,8 +245,6 @@ function log_activity(string $type, ?int $userId, string $username, array $data 
     "team_demote" => "teams",
     "friend_request_sent" => "social",
     "player_deleted" => "admin",
-    "bonus_added" => "admin",
-    "malus_added" => "admin",
     "progress_reset" => "admin",
     "profile_updated" => "social",
     "event_triggered" => "admin",
@@ -532,8 +530,7 @@ function compute_ranking_from_db(PDO $pdo): array
     ->query(
       'SELECT u.id AS user_id, u.username,
                 COUNT(s.id) AS flags_found,
-                COALESCE(SUM(c.points), 0) +
-                COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0) AS total_points
+                COALESCE(SUM(c.points), 0) AS total_points
          FROM users u
          LEFT JOIN submissions s ON s.user_id = u.id
          LEFT JOIN challenges  c ON c.id      = s.challenge_id
@@ -563,9 +560,6 @@ function evaluate_achievements_for_user(PDO $pdo, int $userId): void
   $userFlags = $flagsStmt->fetchAll();
 
   $totalPoints = (int) array_sum(array_column($userFlags, "points"));
-  $bmStmt = $pdo->prepare("SELECT SUM(points) FROM bonus_malus WHERE user_id = ?");
-  $bmStmt->execute([$userId]);
-  $totalPoints += (int) $bmStmt->fetchColumn();
 
   $achStmt = $pdo->prepare(
     'SELECT a.* FROM achievements a WHERE a.id NOT IN
@@ -1936,7 +1930,7 @@ switch ($action) {
     require_admin();
     $stmt = get_pdo()->query(
       'SELECT u.id, u.username, u.email, u.age, u.gender, u.is_admin, u.created_at,
-                    COALESCE(SUM(c.points), 0) + COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0) AS points,
+                    COALESCE(SUM(c.points), 0) AS points,
                     COUNT(s.id) AS solved
              FROM users u
              LEFT JOIN submissions s ON s.user_id = u.id
@@ -1947,44 +1941,11 @@ switch ($action) {
     );
     json_response(["ok" => true, "players" => $stmt->fetchAll()]);
 
-  case "add_bonus":
-    $auth = require_admin();
-    $body = get_body();
-    $userId = (int) $body["userId"];
-    get_pdo()
-      ->prepare(
-        "INSERT INTO bonus_malus (user_id, points, reason, created_at) VALUES (?, ?, ?, NOW())",
-      )
-      ->execute([$userId, abs((int) $body["points"]), "Bonus admin"]);
-    log_activity("bonus_added", (int) $auth["id"], $auth["username"], [
-      "targetId" => $userId,
-      "points" => 25,
-    ]);
-    notify_ws("players");
-    json_response(["ok" => true]);
-
-  case "add_malus":
-    $auth = require_admin();
-    $body = get_body();
-    $userId = (int) $body["userId"];
-    get_pdo()
-      ->prepare(
-        "INSERT INTO bonus_malus (user_id, points, reason, created_at) VALUES (?, ?, ?, NOW())",
-      )
-      ->execute([$userId, -abs((int) $body["points"]), "Malus admin"]);
-    log_activity("malus_added", (int) $auth["id"], $auth["username"], [
-      "targetId" => $userId,
-      "points" => 25,
-    ]);
-    notify_ws("players");
-    json_response(["ok" => true]);
-
   case "reset_user_progress":
     require_admin();
     $userId = (int) (get_body()["userId"] ?? 0);
     $pdo = get_pdo();
     $pdo->prepare("DELETE FROM submissions WHERE user_id = ?")->execute([$userId]);
-    $pdo->prepare("DELETE FROM bonus_malus WHERE user_id = ?")->execute([$userId]);
     $pdo->prepare("DELETE FROM user_achievements WHERE user_id = ?")->execute([$userId]);
     notify_ws("players");
     json_response(["ok" => true]);
@@ -2273,7 +2234,7 @@ switch ($action) {
 
     $stmt = $pdo->prepare(
       'SELECT u.id, u.username, tm.role, tm.joined_at,
-                    COALESCE(SUM(c.points), 0) + COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0) AS points,
+                    COALESCE(SUM(c.points), 0) AS points,
                     COUNT(DISTINCT s.challenge_id) AS solved
              FROM team_members tm
              JOIN users u ON u.id = tm.user_id
@@ -3031,12 +2992,12 @@ switch ($action) {
     // Points + flags (solo)
     $statsStmt = $pdo->prepare('
             SELECT COUNT(s.id) AS solved,
-                   COALESCE(SUM(c.points), 0) + COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = :uid2), 0) AS points
+                   COALESCE(SUM(c.points), 0) AS points
             FROM submissions s
             JOIN challenges c ON c.id = s.challenge_id
             WHERE s.user_id = :uid
         ');
-    $statsStmt->execute([":uid" => $uid, ":uid2" => $uid]);
+    $statsStmt->execute([":uid" => $uid]);
     $stats = $statsStmt->fetch();
 
     // Rang solo
