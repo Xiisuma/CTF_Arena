@@ -524,6 +524,15 @@ function require_admin(): array
   return $user;
 }
 
+// Avant le lancement de la partie, les joueurs ne doivent rien voir des
+// épreuves : le masquage côté interface ne suffit pas, l'API répond déjà.
+function ctf_game_started(PDO $pdo): bool
+{
+  $stmt = $pdo->prepare("SELECT state_value FROM ctf_state WHERE state_key = 'game_started'");
+  $stmt->execute();
+  return $stmt->fetchColumn() === "1";
+}
+
 // ─── Classement ──────────────────────────────────────────────────────────────
 
 function compute_ranking_from_db(PDO $pdo): array
@@ -1333,8 +1342,11 @@ switch ($action) {
   // ════════════════════════════════════════════════════════════════════════
 
   case "get_challenges":
-    require_auth();
+    $auth = require_auth();
     $pdo = get_pdo();
+    if (!$auth["is_admin"] && !ctf_game_started($pdo)) {
+      json_response(["ok" => true, "challenges" => []]);
+    }
     $stmt = $pdo->query(
       'SELECT c.id, c.title, c.category, c.points, c.description,
                     c.difficulty_mode, c.difficulty, c.created_at
@@ -1361,10 +1373,13 @@ switch ($action) {
 
   // ── Téléchargement d'un fichier challenge ─────────────────────────────────
   case "download_file":
-    require_auth();
+    $auth = require_auth();
     $fileId = (int) ($_GET["id"] ?? 0);
     if (!$fileId) {
       json_error("Identifiant fichier manquant", 400);
+    }
+    if (!$auth["is_admin"] && !ctf_game_started(get_pdo())) {
+      json_error("Le CTF n'a pas encore commencé", 403);
     }
     $stmt = get_pdo()->prepare("SELECT file_name, file_path FROM challenge_files WHERE id = ?");
     $stmt->execute([$fileId]);
