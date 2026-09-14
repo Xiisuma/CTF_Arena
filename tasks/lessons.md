@@ -140,3 +140,8 @@
 2026-09-14 | `git checkout -b fix/suppression-bonus-malus` refusé : une branche `fix` existe déjà, et git ne peut pas avoir à la fois la ref `fix` et un dossier `fix/` | Avec des branches catégories permanentes (`fix`, `features`…), nommer les branches de tâche avec un tiret : `fix-<sujet>`, `features-<sujet>`. Jamais de `/` après un nom de branche existant.
 
 2026-09-15 | Le choix du 20/05 (« afficher les challenges avant le lancement, bloquer seulement la soumission ») laissait les joueurs lire toutes les épreuves avant l'heure ; Axel veut qu'on ne voie rien | Un contenu qui ne doit pas être vu se protège côté API (réponse vide / 403 pour les non-admins), pas seulement en masquant l'interface. Quand une donnée arrive vide à cause d'une phase, prévoir son rechargement au changement de phase.
+
+2026-09-15 | Premier passage du smoke test sur une base neuve : cascade de 401 car le compte admin n'existait pas encore (init.php attend la base 10 s alors que le healthcheck est déjà vert) | Après un `down -v && up`, attendre la ligne « Initialisation terminée » dans les logs du backend avant de lancer un test, pas seulement le statut healthy.
+
+2026-09-15 | Suppression d'une fonctionnalité qui stocke des données de jeu (team_submissions) : un DROP direct aurait effacé les points des joueurs concernés | Avant de supprimer une table, se demander quelles données utilisateur elle porte et les migrer vers le modèle qui reste (ici : flag rendu au joueur qui l'a trouvé), dans une migration idempotente testée sur une base qui contient ces données.
+

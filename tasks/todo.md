@@ -192,7 +192,7 @@ TypeScript : 0 erreurs ✅
 Renumérotation du 14/09 (ordre d'exécution) :
 
 - [x] 1. Supprimer bonus / malus (API, table, UI, calcul des scores)
-- [ ] 2. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
+- [x] 2. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
 - [ ] 3. Points dégressifs selon le nombre de résolutions
 - [ ] 4. Historique des flags testés par challenge (visible par le joueur seul)
 - [ ] 5. Rôle auteur : gère uniquement les challenges qu'il a créés
@@ -251,4 +251,27 @@ Problème : CTF non démarré, les joueurs ouvraient déjà les catégories et p
 - [x] Test `HomePage.gate.test.tsx` (4 cas) — échoue sur l'ancien code, passe sur le nouveau
 - [x] typecheck, lint, 86/86 tests, `php -l`
 - [x] Stack jetable : joueur 0 challenge et fichier refusé avant lancement, admin voit tout, joueur voit tout après lancement
+
+## Point 2 — suppression du système d'équipes (2026-09-15)
+
+Branche `fix-suppression-equipes` → PR vers `fix`. Basée sur les PR #3 et #4 (pas encore mergées)
+pour éviter les conflits dans api.php.
+
+- [x] API : 15 actions d'équipe, `update_play_mode`, `get_team_ranking`, branches multijoueur de
+      `submit_flag` / `submit_mystery_flag` / `get_user_flags`, place « équipe » du podium, `play_mode` partout
+- [x] Base : tables `teams`, `team_members`, `team_bans`, `team_submissions`, vue `v_team_ranking`,
+      colonne `users.play_mode` ; `sql/migration_v5.sql` supprimé
+- [x] Migration init.php : flags d'équipe rendus au joueur qui les a trouvés, puis suppression (idempotente)
+- [x] Interface : pages et onglet admin Teams, onglet Teams du classement, « Ma Team » du profil,
+      choix du mode à l'inscription, boîte de notifications Team, règle du guide ; podium à 4 places
+- [x] Tests MSW/hook mis à jour, README, smoke-api.py (vérifie que les actions retirées sont refusées)
+
+### Vérification (stack jetable `-p ctfp2t`)
+- [x] typecheck, lint, 83/83 tests, `php -l`
+- [x] Ancien code : alice + bob en équipe (2 flags d'équipe), carol en solo
+- [x] Rebuild sur la branche : « Flags d'équipe rendus à leurs auteurs : 2 », colonne supprimée,
+      tables/vue/journaux supprimés ; classement alice 100, bob 200, carol 200
+- [x] 8 actions retirées → 404 ; podium sans équipe, `podium_revealed=5` refusé ; inscription sans mode
+- [x] Redémarrage : init sans erreur ; base neuve : smoke test 81 appels, 0 échec
+- [x] Navigateur : formulaire d'inscription sans choix Solo / Équipe
 
