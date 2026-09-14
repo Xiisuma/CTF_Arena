@@ -25,8 +25,6 @@ const TYPE_LABEL: Record<string, string> = {
   team_demote:          "Membre rétrogradé",
   friend_request_sent:  "Demande d'ami envoyée",
   player_deleted:       "Joueur supprimé 🗑️",
-  bonus_added:          "+pts bonus",
-  malus_added:          "-pts malus",
   progress_reset:       "Progression réinitialisée",
 };
 
@@ -45,8 +43,6 @@ const TYPE_BADGE: Record<string, string> = {
   challenge_deleted:    "bg-rose-500/20   text-rose-300   border-rose-500/30",
   ctf_state_change:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
   player_deleted:       "bg-rose-500/20   text-rose-300   border-rose-500/30",
-  bonus_added:          "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  malus_added:          "bg-orange-500/20 text-orange-300 border-orange-500/30",
   team_kick:            "bg-orange-500/20 text-orange-300 border-orange-500/30",
   team_demote:          "bg-orange-500/20 text-orange-300 border-orange-500/30",
 };

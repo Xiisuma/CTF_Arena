@@ -13,9 +13,7 @@ SELECT
     u.id                                                                    AS user_id,
     u.username,
     COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(c.points), 0) +
-        COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0)
-                                                                            AS total_points
+    COALESCE(SUM(c.points), 0)                                              AS total_points
 FROM users u
 LEFT JOIN submissions s ON s.user_id = u.id
 LEFT JOIN challenges  c ON c.id      = s.challenge_id

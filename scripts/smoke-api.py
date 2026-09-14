@@ -212,8 +212,6 @@ def main(admin_pw, tag):
     players = admin.call("get_players").get("players", [])
     pid = next((p["id"] for p in players
                 if p.get("username") == "charlie" + tag), ids["charlie"])
-    admin.call("add_bonus", {"userId": pid, "points": 50, "reason": "aide"})
-    admin.call("add_malus", {"userId": pid, "points": 20, "reason": "triche"})
     admin.call("set_challenge_solved", {"userId": pid, "challengeId": c1,
                                         "solved": True})
     admin.call("reset_user_progress", {"userId": pid})

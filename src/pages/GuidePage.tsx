@@ -18,7 +18,7 @@ const RULES = [
   { id: "teamwork", icon: "👥", title: "Collaboration & Teams", content: `La collaboration au sein d'une même team est autorisée et encouragée. En revanche, l'entraide inter-teams ou la communication de solutions à des joueurs hors de votre team est assimilée à de la triche.` },
   { id: "accounts", icon: "🔑", title: "Comptes & Identité", content: `Chaque participant ne doit posséder qu'un seul compte. La création de comptes multiples pour gonfler un score, contourner une sanction ou toute autre raison est interdite.` },
   { id: "hints", icon: "💡", title: "Indices & Ressources externes", content: `L'utilisation de ressources publiques (documentation, tutoriels, outils open-source) est autorisée. Il est en revanche interdit d'utiliser des solutions de challenges identiques publiées en ligne.` },
-  { id: "scoring", icon: "⭐", title: "Scores & Classement", content: `Les points sont attribués automatiquement à la validation d'un flag correct. Les administrateurs peuvent appliquer des bonus ou malus. Le classement est mis à jour en temps réel.` },
+  { id: "scoring", icon: "⭐", title: "Scores & Classement", content: `Les points sont attribués automatiquement à la validation d'un flag correct. Le classement est mis à jour en temps réel.` },
   { id: "decisions", icon: "⚖️", title: "Décisions des organisateurs", content: `Les décisions des organisateurs et administrateurs de la plateforme sont finales et sans appel. Tout comportement abusif envers l'équipe organisatrice entraîne une exclusion immédiate.` },
 ];
 

@@ -194,9 +194,7 @@ SELECT
     u.id                                                                    AS user_id,
     u.username,
     COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(c.points), 0) +
-        COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0)
-                                                                            AS total_points
+    COALESCE(SUM(c.points), 0)                                              AS total_points
 FROM users u
 LEFT JOIN submissions s ON s.user_id = u.id
 LEFT JOIN challenges  c ON c.id      = s.challenge_id
@@ -244,6 +242,13 @@ $pdo->exec("CREATE OR REPLACE VIEW v_ranking AS
 SELECT * FROM v_solo_ranking");
 
 echo "[init] Vues SQL recréées.\n";
+
+// ─── Retrait du bonus/malus ───────────────────────────────────────────────────
+// Les scores ne dépendent plus que des flags. Sur une base créée avant ce
+// retrait, la table et ses entrées de journal sont supprimées ; les vues
+// ci-dessus ne la référencent plus, le DROP passe donc sans erreur.
+$pdo->exec("DROP TABLE IF EXISTS bonus_malus");
+$pdo->exec("DELETE FROM activity_logs WHERE type IN ('bonus_added', 'malus_added')");
 
 echo "[init] Initialisation terminée.\n";
 

@@ -137,4 +137,6 @@
 
 2026-09-14 | Script de vérification lancé sur un conteneur hérité du passage précédent (créé avec CTF_RESET_STATE=1) : faux échecs | Chaque passage de test repart d'un état propre et explicite (recréation avec l'environnement par défaut, affichage de la variable réelle via docker inspect) avant le premier scénario.
 
+2026-09-14 | `git checkout -b fix/suppression-bonus-malus` refusé : une branche `fix` existe déjà, et git ne peut pas avoir à la fois la ref `fix` et un dossier `fix/` | Avec des branches catégories permanentes (`fix`, `features`…), nommer les branches de tâche avec un tiret : `fix-<sujet>`, `features-<sujet>`. Jamais de `/` après un nom de branche existant.
+
 2026-09-15 | Le choix du 20/05 (« afficher les challenges avant le lancement, bloquer seulement la soumission ») laissait les joueurs lire toutes les épreuves avant l'heure ; Axel veut qu'on ne voie rien | Un contenu qui ne doit pas être vu se protège côté API (réponse vide / 403 pour les non-admins), pas seulement en masquant l'interface. Quand une donnée arrive vide à cause d'une phase, prévoir son rechargement au changement de phase.
