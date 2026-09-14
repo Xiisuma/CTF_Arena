@@ -191,7 +191,7 @@ TypeScript : 0 erreurs ✅
 
 Renumérotation du 14/09 (ordre d'exécution) :
 
-- [ ] 1. Supprimer bonus / malus (API, table, UI, calcul des scores)
+- [x] 1. Supprimer bonus / malus (API, table, UI, calcul des scores)
 - [ ] 2. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
 - [ ] 3. Points dégressifs selon le nombre de résolutions
 - [ ] 4. Historique des flags testés par challenge (visible par le joueur seul)
@@ -209,6 +209,15 @@ Renumérotation du 14/09 (ordre d'exécution) :
 5. scripts/smoke-api.py et README
 6. Vérifier : typecheck, lint, tests, stack jetable (init OK, table absente, classement et
    `add_bonus` → action inconnue, smoke test sans erreur)
+
+### Vérification — point 1 (stack jetable `-p ctfp1`)
+- [x] typecheck, lint, 82/82 tests, `php -l` sur api.php et init.php
+- [x] ancien code : joueur à 100 pts + bonus 25 → 125 dans get_players et le classement
+- [x] rebuild sur la branche : 100 pts partout (get_players, classement, profil public)
+- [x] table `bonus_malus` et entrées de journal supprimées, vue sans référence
+- [x] `add_bonus` / `add_malus` refusés, `reset_user_progress` fonctionne sans la table
+- [x] redémarrage du backend : init repasse sans erreur (DROP idempotent)
+- [x] base neuve : smoke test 98 appels, 0 échec
 
 ### Plan — point 2
 Problème : depuis le 25/08, `init.php` conserve l'état (`INSERT IGNORE`) pour qu'un crash
