@@ -216,3 +216,16 @@ Le système de fichiers d'un conteneur survit à un redémarrage, pas à une rec
 - [x] recréation avec `CTF_RESET_STATE=0` → partie conservée
 - [x] `CTF_RESET_STATE=1` → remise à zéro même après un crash
 - [x] instance principale rebuildée : `gameStarted` true → false, journal « conteneur neuf »
+
+## Correctif 2026-09-15 — challenges visibles avant le lancement
+
+Branche `fix-masquer-challenges-avant-debut` → PR vers `fix`.
+Problème : CTF non démarré, les joueurs ouvraient déjà les catégories et parcouraient les challenges.
+
+- [x] api.php : `ctf_game_started()` ; `get_challenges` renvoie une liste vide et `download_file` 403 aux joueurs tant que `game_started` = 0 (l'admin garde tout)
+- [x] HomePage : liste des catégories remplacée par la bannière « Le CTF commence bientôt » pour les joueurs
+- [x] HomePage : rechargement automatique des challenges quand la phase quitte `not_started`
+- [x] Test `HomePage.gate.test.tsx` (4 cas) — échoue sur l'ancien code, passe sur le nouveau
+- [x] typecheck, lint, 86/86 tests, `php -l`
+- [x] Stack jetable : joueur 0 challenge et fichier refusé avant lancement, admin voit tout, joueur voit tout après lancement
+
