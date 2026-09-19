@@ -8,7 +8,7 @@
 
 <img src="public/logo.png" alt="CTF Arena" width="420">
 
-![Version](https://img.shields.io/badge/version-4.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)
 ![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1-38B2AC.svg?logo=tailwind-css)
