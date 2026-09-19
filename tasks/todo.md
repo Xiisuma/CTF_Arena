@@ -275,3 +275,19 @@ pour éviter les conflits dans api.php.
 - [x] Redémarrage : init sans erreur ; base neuve : smoke test 81 appels, 0 échec
 - [x] Navigateur : formulaire d'inscription sans choix Solo / Équipe
 
+## Retours du 19/09 (branche `fix-profil-classement-barre` → PR vers `fix`)
+
+- [x] Avatar / bio du profil appliqués sans rechargement : `me`, `login` et `register` renvoient
+      `avatarEmoji` et `bio` (ils étaient absents de la réponse), et `AuthContext.refreshUser()`
+      relit le compte après la sauvegarde du profil
+- [x] Classement progressif : `v_solo_ranking` ne garde que les joueurs avec au moins un flag validé
+- [x] Barre de rang masquée tant que le CTF n'est pas lancé, comme les énigmes
+
+### Vérification (stack jetable `-p ctfp4`)
+- [x] typecheck, lint, 86/86 tests (2 nouveaux sur la barre, 1 sur `refreshUser`), `php -l`
+- [x] Classement vide avant le premier flag, puis alice seule après le sien ; bob absent du podium
+      et sans rang sur son profil public
+- [x] `login` / `me` renvoient l'avatar et la bio ; après changement, `me` renvoie le nouvel emoji ;
+      une inscription repart sur 🎯
+- [x] Base neuve : smoke test 81 appels, 0 échec
+

@@ -145,3 +145,5 @@
 
 2026-09-15 | Suppression d'une fonctionnalité qui stocke des données de jeu (team_submissions) : un DROP direct aurait effacé les points des joueurs concernés | Avant de supprimer une table, se demander quelles données utilisateur elle porte et les migrer vers le modèle qui reste (ici : flag rendu au joueur qui l'a trouvé), dans une migration idempotente testée sur une base qui contient ces données.
 
+2026-09-19 | « L'avatar du profil ne change pas » : le correctif côté React (relire l'utilisateur après sauvegarde) ne suffisait pas, car `me` et `login` ne renvoyaient tout simplement pas `avatar_emoji` ni `bio` — l'interface retombait toujours sur l'emoji par défaut | Quand une valeur affichée semble « ne pas se mettre à jour », vérifier d'abord ce que l'API renvoie réellement (un appel direct à l'endpoint) avant de corriger l'état côté client. Une colonne ajoutée en base doit être ajoutée dans TOUS les SELECT qui composent la réponse utilisateur (register, login, me).
+

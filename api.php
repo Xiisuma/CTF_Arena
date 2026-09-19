@@ -918,6 +918,8 @@ switch ($action) {
         "email" => $email,
         "age" => $age,
         "gender" => $gender,
+        "avatarEmoji" => "🎯",
+        "bio" => "",
         "isAdmin" => false,
       ],
       "csrf" => $_SESSION["csrf_token"],
@@ -968,7 +970,7 @@ switch ($action) {
       json_error("Veuillez entrer une adresse email valide");
     }
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, password_hash, age, gender FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
+      "SELECT id, username, email, password_hash, age, gender, avatar_emoji, bio FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
     );
     $stmt->execute([strtolower($identifier)]);
     $user = $stmt->fetch();
@@ -1004,6 +1006,8 @@ switch ($action) {
         "email" => $user["email"],
         "age" => (int) $user["age"],
         "gender" => $user["gender"],
+        "avatarEmoji" => $user["avatar_emoji"],
+        "bio" => $user["bio"],
         "isAdmin" => false,
       ],
       "csrf" => $_SESSION["csrf_token"],
@@ -1034,7 +1038,7 @@ switch ($action) {
     }
     $pdo = get_pdo();
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, age, gender, is_admin FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, username, email, age, gender, avatar_emoji, bio, is_admin FROM users WHERE id = ? LIMIT 1",
     );
     $stmt->execute([$_SESSION["user_id"]]);
     $user = $stmt->fetch();
@@ -1051,6 +1055,8 @@ switch ($action) {
         "email" => $user["email"],
         "age" => $user["age"] !== null ? (int) $user["age"] : null,
         "gender" => $user["gender"],
+        "avatarEmoji" => $user["avatar_emoji"],
+        "bio" => $user["bio"],
         "isAdmin" => (bool) $user["is_admin"],
       ],
       "csrf" => $_SESSION["csrf_token"],
