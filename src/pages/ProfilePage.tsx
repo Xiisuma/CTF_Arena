@@ -19,7 +19,7 @@ type ProfileTab = "flags" | "stats" | "friends" | "edit";
 const PROFILE_TABS = new Set<ProfileTab>(["flags", "stats", "friends", "edit"]);
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [flags, setFlags] = useState<FlagSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -159,6 +159,7 @@ export default function ProfilePage() {
           onSave={async () => {
             setSaving(true); setSaveOk(false);
             await updateProfile(avatarEmoji, bio);
+            await refreshUser();
             setSaving(false); setSaveOk(true);
             setTimeout(() => setSaveOk(false), 2500);
           }}

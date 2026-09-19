@@ -48,6 +48,8 @@ interface AuthContextValue {
   forgotPassword: (email: string) => Promise<string>;
   resetPassword: (token: string, password: string) => Promise<string | null>;
   validateResetToken: (token: string) => Promise<boolean>;
+  /** Recharge l'utilisateur depuis l'API (après modification du profil). */
+  refreshUser: () => Promise<void>;
 }
 
 // ─── URL de base ──────────────────────────────────────────────────────────────
@@ -128,22 +130,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restauration de session au montage
-  useEffect(() => {
-    const restore = async () => {
-      try {
-        const data = await apiFetch("me", { method: "GET" });
-        if (data.ok && data.user) {
-          setUser(normalizeUser(data.user as RawApiUser));
-        }
-      } catch {
-        // Pas de session active
-      } finally {
-        setLoading(false);
+  // Lecture de la session courante — au montage, puis après toute modification
+  // du profil : sans ça, l'avatar de la barre de navigation reste celui d'avant.
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await apiFetch("me", { method: "GET" });
+      if (data.ok && data.user) {
+        setUser(normalizeUser(data.user as RawApiUser));
       }
-    };
-    restore();
+    } catch {
+      // Pas de session active
+    }
   }, []);
+
+  useEffect(() => {
+    refreshUser().finally(() => setLoading(false));
+  }, [refreshUser]);
 
   const login = useCallback(
     async (identifier: string, password: string): Promise<string | null> => {
@@ -243,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         forgotPassword,
         resetPassword,
         validateResetToken,
+        refreshUser,
       }}
     >
       {children}

@@ -200,6 +200,7 @@ LEFT JOIN submissions s ON s.user_id = u.id
 LEFT JOIN challenges  c ON c.id      = s.challenge_id
 WHERE u.is_admin = 0
 GROUP BY u.id, u.username
+HAVING flags_found > 0
 ORDER BY total_points DESC, flags_found DESC");
 
 $pdo->exec("CREATE OR REPLACE VIEW v_most_flags AS

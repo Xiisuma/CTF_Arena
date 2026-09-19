@@ -52,6 +52,18 @@ describe("HomePage — CTF non démarré", () => {
     expect(screen.queryByText("Web")).toBeNull();
   });
 
+  it("masque la barre de progression du rang tant que la partie n'est pas lancée", () => {
+    setup("not_started", false);
+    render(<HomePage />);
+    expect(screen.queryByText(/flag validé/)).toBeNull();
+  });
+
+  it("affiche la barre de progression du rang une fois la partie lancée", () => {
+    setup("running", false);
+    render(<HomePage />);
+    expect(screen.getByText(/flag validé/)).toBeTruthy();
+  });
+
   it("laisse l'admin voir les catégories pour préparer la partie", () => {
     setup("not_started", true);
     render(<HomePage />);

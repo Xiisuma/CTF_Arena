@@ -270,7 +270,7 @@ export default function HomePage() {
       )}
 
       {/* Barre de progression du rang */}
-      {rankData && (
+      {rankData && !isLocked && (
         <RankProgressBar rankData={rankData} solvedCount={solvedIds.size} />
       )}
 
