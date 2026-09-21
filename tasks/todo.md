@@ -338,3 +338,26 @@ tentés sur celui choisi. Les essais d'un challenge disparaissent dès qu'il est
 - [ ] `php -l`, parcours sur stack jetable (essai enregistré, disparition après résolution,
       isolation entre joueurs) : à faire, Docker Desktop est arrêté
 
+## Point 5 — rôle auteur (2026-09-21, branche `features-role-auteur`)
+
+Demande d'Axel : donner le rôle auteur à certains comptes depuis Paramètres. Un auteur crée des
+challenges dans les catégories existantes, modifie et supprime uniquement les siens, et dispose
+d'un bouton « mode auteur » sur la page d'accueil. Mode activé : il crée. Mode désactivé : il joue,
+mais ne peut jamais valider ses propres challenges.
+
+- [x] `users.is_author` et `challenges.created_by` (schéma + migrations idempotentes)
+- [x] `require_author()` et `require_challenge_owner()` : l'admin passe partout, l'auteur seulement
+      sur ses créations (add / update / delete challenge)
+- [x] `submit_flag` refuse un challenge créé par le joueur lui-même
+- [x] `get_challenges` calcule `canEdit` et `mine` côté serveur ; l'interface ne fait qu'obéir
+- [x] Les auteurs voient les challenges avant le lancement (nécessaire pour préparer)
+- [x] `set_author_role` (admin) + bouton dans PlayersSection + badge « Auteur » + journal
+- [x] Bascule « mode auteur » sur la page d'accueil, mémorisée par navigateur
+- [x] Modale : bandeau « vous êtes l'auteur », aucun champ de soumission sur ses propres challenges
+- [x] 4 tests sur la bascule et les droits d'édition
+
+### Vérification
+- [x] typecheck, lint, 93/93 tests
+- [ ] `php -l` et parcours sur stack jetable (auteur crée, modifie le sien, échoue sur celui d'un
+      autre, ne peut pas valider le sien) : à faire, Docker Desktop est arrêté
+

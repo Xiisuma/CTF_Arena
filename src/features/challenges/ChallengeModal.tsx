@@ -180,6 +180,16 @@ export function ChallengeModal({
               </div>
             </div>
           </div>
+          {challenge.mine && !solved && (
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3">
+              <p className="text-sm font-semibold text-violet-300">
+                ✍️ Vous êtes l'auteur de ce challenge
+              </p>
+              <p className="mt-1 text-xs text-tertiary">
+                Vous ne pouvez pas le valider, il ne rapporte aucun point à son auteur.
+              </p>
+            </div>
+          )}
           {solved && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
               <p className="text-sm font-semibold text-emerald-300">
@@ -197,7 +207,7 @@ export function ChallengeModal({
               </p>
             </div>
           )}
-          {!solved && !success && (
+          {!solved && !success && !challenge.mine && (
             <div>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Soumettre le flag

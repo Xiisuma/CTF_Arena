@@ -11,6 +11,8 @@ function normalizeChallenge(raw: Record<string, unknown>): Challenge {
     points: Number(raw.points),
     currentPoints: Number(raw.currentPoints ?? raw.points),
     solves: Number(raw.solves ?? 0),
+    canEdit: Boolean(raw.canEdit),
+    mine: Boolean(raw.mine),
     description: String(raw.description),
     files: Array.isArray(raw.files)
       ? toRawArray(raw.files).map((f) => ({

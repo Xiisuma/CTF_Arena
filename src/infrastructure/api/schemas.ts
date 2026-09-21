@@ -41,6 +41,8 @@ export const ChallengeSchema = z.object({
   points: num,
   currentPoints: num,
   solves: num,
+  canEdit: bool,
+  mine: bool,
   description: str,
   files: z.array(ChallengeFileSchema),
   // flag_encrypted n'est jamais renvoyé par l'API — pas de champ flag ici.
@@ -95,6 +97,7 @@ export const PlayerWithPointsSchema = z.object({
   id: str,
   username: str,
   isAdmin: bool,
+  isAuthor: bool,
   points: num,
   solved: num,
 });

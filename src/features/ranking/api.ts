@@ -27,11 +27,20 @@ export async function getPlayersWithPoints(): Promise<PlayerWithPoints[]> {
       id: String(p.id),
       username: String(p.username),
       isAdmin: Boolean(p.is_admin),
+      isAuthor: Boolean(Number(p.is_author ?? 0)),
       points: Number(p.points),
       solved: Number(p.solved),
     };
     return validate(PlayerWithPointsSchema, result, "PlayerWithPoints");
   });
+}
+
+export async function setAuthorRole(userId: string, isAuthor: boolean): Promise<boolean> {
+  const data = await apiFetch("set_author_role", {
+    method: "POST",
+    body: JSON.stringify({ userId, isAuthor }),
+  });
+  return Boolean(data.ok);
 }
 
 export async function resetUserProgress(userId: string): Promise<boolean> {

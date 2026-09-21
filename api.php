@@ -226,6 +226,7 @@ function log_activity(string $type, ?int $userId, string $username, array $data 
     "ctf_state_change" => "gameplay",
     "friend_request_sent" => "social",
     "player_deleted" => "admin",
+    "author_role_changed" => "admin",
     "progress_reset" => "admin",
     "profile_updated" => "social",
     "event_triggered" => "admin",
@@ -492,7 +493,40 @@ function require_auth(): array
     "id" => (int) $_SESSION["user_id"],
     "username" => $_SESSION["username"],
     "is_admin" => (bool) ($_SESSION["is_admin"] ?? false),
+    "is_author" => (bool) ($_SESSION["is_author"] ?? false),
   ];
+}
+
+/**
+ * Accès aux outils de création de challenges : l'administrateur, et les joueurs
+ * à qui il a donné le rôle auteur. Un auteur ne gère que ses propres challenges,
+ * ce que vérifie require_challenge_owner().
+ */
+function require_author(): array
+{
+  $user = require_auth();
+  if (!$user["is_admin"] && !$user["is_author"]) {
+    json_error("Accès réservé aux auteurs de challenges", 403);
+  }
+  return $user;
+}
+
+/**
+ * Vérifie que l'appelant a le droit de modifier ce challenge et le retourne.
+ * L'administrateur passe partout ; un auteur seulement sur ses créations.
+ */
+function require_challenge_owner(PDO $pdo, array $auth, int $challengeId): array
+{
+  $stmt = $pdo->prepare("SELECT id, title, points, created_by FROM challenges WHERE id = ?");
+  $stmt->execute([$challengeId]);
+  $chal = $stmt->fetch();
+  if (!$chal) {
+    json_error("Challenge introuvable", 404);
+  }
+  if (!$auth["is_admin"] && (int) $chal["created_by"] !== (int) $auth["id"]) {
+    json_error("Vous ne pouvez modifier que les challenges que vous avez créés", 403);
+  }
+  return $chal;
 }
 function require_admin(): array
 {
@@ -976,6 +1010,7 @@ switch ($action) {
         "avatarEmoji" => "🎯",
         "bio" => "",
         "isAdmin" => false,
+        "isAuthor" => false,
       ],
       "csrf" => $_SESSION["csrf_token"],
     ]);
@@ -1025,7 +1060,7 @@ switch ($action) {
       json_error("Veuillez entrer une adresse email valide");
     }
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, password_hash, age, gender, avatar_emoji, bio FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
+      "SELECT id, username, email, password_hash, age, gender, avatar_emoji, bio, is_author FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
     );
     $stmt->execute([strtolower($identifier)]);
     $user = $stmt->fetch();
@@ -1050,6 +1085,7 @@ switch ($action) {
     $_SESSION["user_id"] = (int) $user["id"];
     $_SESSION["username"] = $user["username"];
     $_SESSION["is_admin"] = false;
+    $_SESSION["is_author"] = (bool) $user["is_author"];
     reset_rate_limit($ip);
     generate_csrf_token();
     log_activity("login_success", (int) $user["id"], $user["username"]);
@@ -1064,6 +1100,7 @@ switch ($action) {
         "avatarEmoji" => $user["avatar_emoji"],
         "bio" => $user["bio"],
         "isAdmin" => false,
+        "isAuthor" => (bool) $user["is_author"],
       ],
       "csrf" => $_SESSION["csrf_token"],
     ]);
@@ -1093,7 +1130,7 @@ switch ($action) {
     }
     $pdo = get_pdo();
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, age, gender, avatar_emoji, bio, is_admin FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, username, email, age, gender, avatar_emoji, bio, is_admin, is_author FROM users WHERE id = ? LIMIT 1",
     );
     $stmt->execute([$_SESSION["user_id"]]);
     $user = $stmt->fetch();
@@ -1101,6 +1138,7 @@ switch ($action) {
       session_destroy();
       json_response(["ok" => false, "user" => null]);
     }
+    $_SESSION["is_author"] = (bool) $user["is_author"];
     generate_csrf_token();
     json_response([
       "ok" => true,
@@ -1113,6 +1151,7 @@ switch ($action) {
         "avatarEmoji" => $user["avatar_emoji"],
         "bio" => $user["bio"],
         "isAdmin" => (bool) $user["is_admin"],
+        "isAuthor" => (bool) $user["is_author"],
       ],
       "csrf" => $_SESSION["csrf_token"],
     ]);
@@ -1365,12 +1404,12 @@ switch ($action) {
   case "get_challenges":
     $auth = require_auth();
     $pdo = get_pdo();
-    if (!$auth["is_admin"] && !ctf_game_started($pdo)) {
+    if (!$auth["is_admin"] && !$auth["is_author"] && !ctf_game_started($pdo)) {
       json_response(["ok" => true, "challenges" => []]);
     }
     $stmt = $pdo->query(
       'SELECT c.id, c.title, c.category, c.points, c.description,
-                    c.difficulty_mode, c.difficulty, c.created_at
+                    c.difficulty_mode, c.difficulty, c.created_by, c.created_at
              FROM challenges c
              JOIN categories cat ON cat.id = c.category
              ORDER BY cat.sort_order ASC, c.points ASC',
@@ -1404,6 +1443,11 @@ switch ($action) {
       $solves = $solvesByChal[$ch["id"]] ?? 0;
       $ch["solves"] = $solves;
       $ch["currentPoints"] = dynamic_points((int) $ch["points"], $solves + 1);
+      // L'interface n'affiche les boutons d'édition que si le serveur les accorde,
+      // et le serveur revérifie à chaque appel.
+      $ch["mine"] = (int) $ch["created_by"] === (int) $auth["id"];
+      $ch["canEdit"] = $auth["is_admin"] || $ch["mine"];
+      unset($ch["created_by"]);
     }
     json_response(["ok" => true, "challenges" => $challenges]);
 
@@ -1414,7 +1458,7 @@ switch ($action) {
     if (!$fileId) {
       json_error("Identifiant fichier manquant", 400);
     }
-    if (!$auth["is_admin"] && !ctf_game_started(get_pdo())) {
+    if (!$auth["is_admin"] && !$auth["is_author"] && !ctf_game_started(get_pdo())) {
       json_error("Le CTF n'a pas encore commencé", 403);
     }
     $stmt = get_pdo()->prepare("SELECT file_name, file_path FROM challenge_files WHERE id = ?");
@@ -1443,7 +1487,7 @@ switch ($action) {
     exit();
 
   case "add_challenge":
-    $auth = require_admin();
+    $auth = require_author();
     $body = get_body();
     $title = sanitize_string($body["title"] ?? "", 200);
     $category = sanitize_string($body["category"] ?? "", 30);
@@ -1470,10 +1514,19 @@ switch ($action) {
 
     $pdo
       ->prepare(
-        'INSERT INTO challenges (title, category, points, description, flag_encrypted, difficulty_mode, difficulty, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+        'INSERT INTO challenges (title, category, points, description, flag_encrypted, difficulty_mode, difficulty, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
       )
-      ->execute([$title, $category, $points, $desc, encrypt_flag($flag), $diffMode, $diff]);
+      ->execute([
+        $title,
+        $category,
+        $points,
+        $desc,
+        encrypt_flag($flag),
+        $diffMode,
+        $diff,
+        (int) $auth["id"],
+      ]);
     $id = (int) $pdo->lastInsertId();
     if (!empty($body["files"]) && is_array($body["files"])) {
       handle_challenge_files($pdo, $id, $body["files"]);
@@ -1483,7 +1536,7 @@ switch ($action) {
     json_response(["ok" => true, "id" => $id]);
 
   case "update_challenge":
-    $auth = require_admin();
+    $auth = require_author();
     $body = get_body();
     $id = (int) ($body["id"] ?? 0);
     $title = sanitize_string($body["title"] ?? "", 200);
@@ -1502,6 +1555,7 @@ switch ($action) {
     }
 
     $pdo = get_pdo();
+    require_challenge_owner($pdo, $auth, $id);
     $pdo
       ->prepare(
         "UPDATE challenges SET title=?, category=?, points=?, description=?, flag_encrypted=?, difficulty_mode=?, difficulty=? WHERE id=?",
@@ -1537,13 +1591,14 @@ switch ($action) {
     json_response(["ok" => true]);
 
   case "delete_challenge":
-    $auth = require_admin();
+    $auth = require_author();
     $body = get_body();
     $id = (int) ($body["id"] ?? 0);
     if (!$id) {
       json_error("ID manquant");
     }
     $pdo = get_pdo();
+    require_challenge_owner($pdo, $auth, $id);
     $files = $pdo->prepare("SELECT file_path FROM challenge_files WHERE challenge_id = ?");
     $files->execute([$id]);
     foreach ($files->fetchAll() as $f) {
@@ -1593,11 +1648,16 @@ switch ($action) {
       }
     }
 
-    $challenge = $pdo->prepare("SELECT flag_encrypted, points, title FROM challenges WHERE id = ?");
+    $challenge = $pdo->prepare(
+      "SELECT flag_encrypted, points, title, created_by FROM challenges WHERE id = ?",
+    );
     $challenge->execute([$challengeId]);
     $chal = $challenge->fetch();
     if (!$chal) {
       json_error("Challenge introuvable");
+    }
+    if ((int) $chal["created_by"] === (int) $auth["id"]) {
+      json_error("Vous ne pouvez pas valider un challenge que vous avez créé");
     }
 
     $expectedFlag = strtolower(trim(decrypt_flag($chal["flag_encrypted"])));
@@ -1937,7 +1997,7 @@ switch ($action) {
   case "get_players":
     require_admin();
     $stmt = get_pdo()->query(
-      'SELECT u.id, u.username, u.email, u.age, u.gender, u.is_admin, u.created_at,
+      'SELECT u.id, u.username, u.email, u.age, u.gender, u.is_admin, u.is_author, u.created_at,
                     COALESCE(SUM(s.points_awarded), 0) AS points,
                     COUNT(s.id) AS solved
              FROM users u
@@ -1947,6 +2007,35 @@ switch ($action) {
              ORDER BY points DESC',
     );
     json_response(["ok" => true, "players" => $stmt->fetchAll()]);
+
+  case "set_author_role":
+    $auth = require_admin();
+    $body = get_body();
+    $userId = (int) ($body["userId"] ?? 0);
+    $isAuthor = !empty($body["isAuthor"]);
+    if (!$userId) {
+      json_error("Joueur manquant");
+    }
+    $pdo = get_pdo();
+    $target = $pdo->prepare("SELECT username, is_admin FROM users WHERE id = ?");
+    $target->execute([$userId]);
+    $u = $target->fetch();
+    if (!$u) {
+      json_error("Joueur introuvable", 404);
+    }
+    if ($u["is_admin"]) {
+      json_error("L'administrateur a déjà tous les droits");
+    }
+    $pdo->prepare("UPDATE users SET is_author = ? WHERE id = ?")->execute([
+      $isAuthor ? 1 : 0,
+      $userId,
+    ]);
+    log_activity("author_role_changed", (int) $auth["id"], $auth["username"], [
+      "targetId" => $userId,
+      "isAuthor" => $isAuthor,
+    ]);
+    notify_ws("players");
+    json_response(["ok" => true, "isAuthor" => $isAuthor]);
 
   case "reset_user_progress":
     require_admin();

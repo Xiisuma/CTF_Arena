@@ -12,14 +12,15 @@ export function ChallengeCard({
   onOpen,
   onEdit,
   onDelete,
-  isAdmin,
+  canManage,
 }: {
   challenge: Challenge;
   solved: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  isAdmin: boolean;
+  /** Outils d'édition : le serveur a accordé le droit sur ce challenge. */
+  canManage: boolean;
 }) {
   const diff = getDifficulty(
     challenge.points,
@@ -73,7 +74,7 @@ export function ChallengeCard({
             </span>
           )}
         </div>
-        {isAdmin && (
+        {canManage && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={(e) => {

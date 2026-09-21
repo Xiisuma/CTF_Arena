@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
     age           TINYINT UNSIGNED NULL,
     gender        ENUM('male','female','other') NULL,
     is_admin      TINYINT(1)       NOT NULL DEFAULT 0,
+    is_author     TINYINT(1)       NOT NULL DEFAULT 0
+                  COMMENT 'Peut créer des challenges et ne gérer que les siens',
     created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_username UNIQUE (username),
@@ -91,6 +93,7 @@ CREATE TABLE IF NOT EXISTS challenges (
     flag_encrypted  TEXT         NOT NULL COMMENT 'Flag chiffré AES-256-GCM, jamais exposé',
     difficulty_mode ENUM('auto','easy','medium','hard') NOT NULL DEFAULT 'auto',
     difficulty      ENUM('easy','medium','hard') NULL,
+    created_by      INT UNSIGNED NULL COMMENT 'Auteur du challenge (NULL = administrateur)',
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT ck_challenges_points CHECK (points > 0),

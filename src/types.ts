@@ -32,6 +32,10 @@ export interface Challenge {
   currentPoints: number;
   /** Nombre de joueurs l'ayant déjà résolu. */
   solves: number;
+  /** L'utilisateur courant peut-il modifier ce challenge ? (calculé par le serveur) */
+  canEdit: boolean;
+  /** L'utilisateur courant est-il l'auteur de ce challenge ? */
+  mine: boolean;
   description: string;
   files: ChallengeFile[];
   // flag_encrypted n'est jamais renvoyé par l'API — le flag est saisi séparément par l'admin
@@ -115,6 +119,7 @@ export interface PlayerWithPoints {
   id: string;
   username: string;
   isAdmin: boolean;
+  isAuthor: boolean;
   points: number;
   solved: number;
 }

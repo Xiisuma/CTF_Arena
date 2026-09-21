@@ -209,6 +209,26 @@ if (!$hasAwarded) {
     echo "[init] Colonne submissions.points_awarded ajoutée ($filled soumissions reprises).\n";
 }
 
+// ─── Rôle auteur ──────────────────────────────────────────────────────────────
+// Un auteur crée des challenges et ne gère que les siens. `created_by` garde la
+// trace du créateur ; NULL signifie « créé par l'administrateur ».
+try {
+    $pdo->exec("ALTER TABLE users ADD COLUMN is_author TINYINT(1) NOT NULL DEFAULT 0");
+    echo "[init] Colonne users.is_author ajoutée.\n";
+} catch (Exception $e) {
+    echo "[init] users.is_author déjà présente.\n";
+}
+try {
+    $pdo->exec("ALTER TABLE challenges ADD COLUMN created_by INT UNSIGNED NULL");
+    $pdo->exec(
+        "ALTER TABLE challenges ADD CONSTRAINT fk_challenges_author
+         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
+    );
+    echo "[init] Colonne challenges.created_by ajoutée.\n";
+} catch (Exception $e) {
+    echo "[init] challenges.created_by déjà présente.\n";
+}
+
 // ─── Essais de flags ──────────────────────────────────────────────────────────
 // Historique des flags erronés, visible du seul joueur concerné. Effacé pour un
 // challenge dès qu'il le résout.
