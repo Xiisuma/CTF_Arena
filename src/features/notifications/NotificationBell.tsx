@@ -82,16 +82,14 @@ export function NotificationBell({ onOpenPage }: { onOpenPage: () => void }) {
 
           {/* Badges par boîte */}
           <div className="flex gap-1 border-b border-primary px-3 py-2">
-            {(["perso", "amis", "team"] as NotifBox[]).map((box) => {
+            {(["perso", "amis"] as NotifBox[]).map((box) => {
               const icons: Record<NotifBox, string> = {
                 perso: "👤",
                 amis: "👥",
-                team: "🛡️",
               };
               const labels: Record<NotifBox, string> = {
                 perso: "Perso",
                 amis: "Amis",
-                team: "Team",
               };
               const count = unreadPerBox[box];
               return (

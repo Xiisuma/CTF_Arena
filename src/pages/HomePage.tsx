@@ -6,7 +6,7 @@
  * - CTF phase gate + ScrambleCountdown
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { removeChallenge, addChallenge, updateChallenge } from "../db";
 import { useAuth } from "../features/auth/AuthContext";
 import { useChallenges } from "../features/challenges/useChallenges";
@@ -66,8 +66,17 @@ export default function HomePage() {
   const [mutationError, setMutationError] = useState<string | null>(null);
   const { pendingConfirm, requestConfirm, closeConfirm } = useConfirm();
 
-  const { ctfState, phase } = useCTFState();
+  const { ctfState, phase, loading: ctfLoading } = useCTFState();
   const { event: activeEvent } = useActiveEvent();
+
+  // Avant le lancement, l'API ne renvoie aucun challenge aux joueurs : au
+  // démarrage de la partie, il faut les recharger sans attendre un F5.
+  const wasNotStartedRef = useRef(phase === "not_started");
+  useEffect(() => {
+    const notStarted = phase === "not_started";
+    if (wasNotStartedRef.current && !notStarted) refreshAll();
+    wasNotStartedRef.current = notStarted;
+  }, [phase, refreshAll]);
 
   const challengesByCategory = useMemo(() => {
     return categories.reduce<Record<string, Challenge[]>>((acc, cat) => {
@@ -183,6 +192,8 @@ export default function HomePage() {
 
   const secondsLeft = phaseSecondsLeft(ctfState, phase);
   const isBlocked = (phase === "grace" || phase === "not_started") && !user.isAdmin;
+  // Avant le lancement, les joueurs ne voient ni les catégories ni les challenges
+  const isLocked = phase === "not_started" && !user.isAdmin;
 
   const cardsGridClass: Record<CardsPerLine, string> = {
     1: "grid-cols-1",
@@ -208,7 +219,9 @@ export default function HomePage() {
         <div>
           <h1 className="text-3xl font-black text-primary">🏴 Énigmes</h1>
           <p className="mt-1 text-sm text-tertiary">
-            {status === "loading"
+            {isLocked
+              ? "Les challenges seront révélés au lancement du CTF."
+              : status === "loading"
               ? "Chargement…"
               : `${challenges.length} challenge${challenges.length > 1 ? "s" : ""} disponible${challenges.length > 1 ? "s" : ""}${
                   !user.isAdmin
@@ -244,7 +257,9 @@ export default function HomePage() {
         <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4 text-center">
           <p className="text-sm font-semibold text-sky-300 mb-1">🔒 Le CTF commence bientôt</p>
           <p className="text-sky-200/80 text-sm">
-            Les énigmes sont visibles mais les soumissions seront ouvertes par l'administrateur.
+            {user.isAdmin
+              ? "Les joueurs ne voient pas encore les catégories ni les challenges."
+              : "Les catégories et les challenges apparaîtront dès que l'administrateur lancera la partie."}
           </p>
         </div>
       )}
@@ -255,7 +270,7 @@ export default function HomePage() {
       )}
 
       {/* Barre de progression du rang */}
-      {rankData && (
+      {rankData && !isLocked && (
         <RankProgressBar rankData={rankData} solvedCount={solvedIds.size} />
       )}
 
@@ -265,7 +280,7 @@ export default function HomePage() {
       )}
 
       {/* Chargement / Erreur de fetch */}
-      {challengeError || solvedError ? (
+      {ctfLoading || isLocked ? null : challengeError || solvedError ? (
         <ErrorMessage message={challengeError ?? solvedError ?? ""} onRetry={refreshAll} />
       ) : status === "loading" || solvedStatus === "loading" ? (
         <div className="flex items-center justify-center py-16">

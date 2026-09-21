@@ -15,9 +15,8 @@ export const LOG_CATEGORIES = {
   all:      { label: "Tout",      types: [] as string[] },
   auth:     { label: "Auth",      types: ["register_success","register_fail","login_success","login_fail","logout"] },
   gameplay: { label: "Gameplay",  types: ["flag_correct","flag_wrong","challenge_created","challenge_updated","challenge_deleted","achievement_unlocked","ctf_state_change"] },
-  teams:    { label: "Teams",     types: ["team_join","team_leave","team_kick","team_promote","team_demote"] },
   social:   { label: "Social",    types: ["friend_request_sent"] },
-  admin:    { label: "Admin",     types: ["player_deleted","bonus_added","malus_added","progress_reset"] },
+  admin:    { label: "Admin",     types: ["player_deleted","progress_reset"] },
 } as const;
 
 export type LogCategory = keyof typeof LOG_CATEGORIES;
