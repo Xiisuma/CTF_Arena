@@ -2950,7 +2950,7 @@ switch ($action) {
       ->execute([$key, $value]);
     if ($key === "game_started") {
       // Horodatage du lancement : certains succès ne s'ouvrent qu'après 30 minutes.
-      $pdo
+      get_pdo()
         ->prepare(
           "INSERT INTO ctf_state (state_key, state_value) VALUES ('game_started_at', ?)
            ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = NOW()",

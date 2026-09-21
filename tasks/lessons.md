@@ -151,3 +151,5 @@
 
 2026-09-21 | Le rattrapage des flags d'équipe (INSERT dans submissions) n'alimentait pas la nouvelle colonne `points_awarded` : les flags récupérés seraient repartis à 0 point | Quand une colonne obligatoire pour le score est ajoutée, relire tous les INSERT existants sur la table, y compris ceux des migrations précédentes.
 
+2026-09-21 | Bloc ajouté dans `set_ctf_state` utilisant `$pdo` alors que ce case n'appelle que `get_pdo()` à la volée : `Undefined variable $pdo`, erreur 500 sur tout changement d'état du CTF, invisible pour les tests unitaires | Dans api.php, chaque `case` gère sa propre connexion : avant d'insérer du code dans un case, vérifier si `$pdo` y est défini, sinon appeler `get_pdo()`. Un endpoint jamais rejoué de bout en bout est un endpoint non vérifié — c'est le smoke test qui l'a attrapé, pas le typecheck.
+

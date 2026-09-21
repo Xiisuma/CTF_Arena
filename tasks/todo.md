@@ -379,6 +379,7 @@ mais ne peut jamais valider ses propres challenges.
 
 ### Vérification
 - [x] typecheck, lint, 93/93 tests
-- [ ] `php -l` et parcours sur stack jetable : impossible, Docker Desktop est arrêté et son exécutable
-      est introuvable sur la machine. À refaire dès que Docker est relancé.
-
+- [x] `php -l` sur api.php, init.php et achievements_catalogue.php
+- [x] Stack jetable `-p ctfp7` : 34 contrôles au vert sur les 4 chantiers (points dégressifs, essais,
+      rôle auteur, succès), redémarrage sans erreur, smoke test 81 appels 0 échec sur base neuve
+- [x] Bug attrapé au passage : `set_ctf_state` renvoyait 500 (`$pdo` non défini dans ce case)
