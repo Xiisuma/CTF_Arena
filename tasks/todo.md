@@ -291,3 +291,30 @@ pour éviter les conflits dans api.php.
       une inscription repart sur 🎯
 - [x] Base neuve : smoke test 81 appels, 0 échec
 
+## Point 3 — points dégressifs (2026-09-21, branche `features-points-degressifs`)
+
+Choix d'Axel : décote lente au début puis de plus en plus rapide, plancher à 25 % de la valeur
+de départ, atteint à la 12e résolution, points figés au moment de la résolution.
+
+Courbe : `points(n) = P − (P − P×25 %) × ((n−1)/12)²`, bornée au plancher.
+Pour 100 points : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+
+- [x] api.php : `dynamic_points()` + `next_challenge_points()`, réglables par
+      `SCORING_DECAY_SOLVES` et `SCORING_FLOOR_PERCENT`
+- [x] Colonne `submissions.points_awarded` : points figés, migration idempotente dans init.php
+      (placée avant les vues, qui la référencent)
+- [x] Tous les calculs de score basculés sur `SUM(s.points_awarded)` : vues, classement, liste
+      admin, profil public, historique des flags, succès
+- [x] `get_challenges` renvoie `currentPoints` et `solves` ; `points` reste la valeur de départ
+      éditée par l'admin
+- [x] Carte et modale : valeur actuelle + nombre de résolutions ; message de succès basé sur les
+      points réellement gagnés
+
+### Vérification (stack jetable `-p ctfp5`)
+- [x] typecheck, lint, 86/86 tests, `php -l`
+- [x] Base existante : les 2 anciennes soumissions gardent 100 points après migration
+- [x] 14 résolutions successives : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, 25, 25
+- [x] Points figés : 1er à 100, 5e à 92, dernier à 25, cohérent dans le classement, l'historique,
+      le profil public et la liste admin
+- [ ] Redémarrage du backend et smoke test sur base neuve : à refaire, Docker Desktop s'est arrêté
+

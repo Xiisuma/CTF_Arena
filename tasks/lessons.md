@@ -147,3 +147,7 @@
 
 2026-09-19 | « L'avatar du profil ne change pas » : le correctif côté React (relire l'utilisateur après sauvegarde) ne suffisait pas, car `me` et `login` ne renvoyaient tout simplement pas `avatar_emoji` ni `bio` — l'interface retombait toujours sur l'emoji par défaut | Quand une valeur affichée semble « ne pas se mettre à jour », vérifier d'abord ce que l'API renvoie réellement (un appel direct à l'endpoint) avant de corriger l'état côté client. Une colonne ajoutée en base doit être ajoutée dans TOUS les SELECT qui composent la réponse utilisateur (register, login, me).
 
+2026-09-21 | Migration ajoutant `submissions.points_awarded` placée à la fin de init.php, après la recréation des vues qui référencent déjà la colonne : `Column not found: 1054 Unknown column 's.points_awarded'`, backend en boucle de redémarrage | Dans init.php, l'ordre est imposé par les dépendances : colonnes et tables d'abord, vues ensuite. Toute migration de schéma doit être écrite AVANT le bloc `CREATE OR REPLACE VIEW`, jamais après.
+
+2026-09-21 | Le rattrapage des flags d'équipe (INSERT dans submissions) n'alimentait pas la nouvelle colonne `points_awarded` : les flags récupérés seraient repartis à 0 point | Quand une colonne obligatoire pour le score est ajoutée, relire tous les INSERT existants sur la table, y compris ceux des migrations précédentes.
+

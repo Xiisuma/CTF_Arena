@@ -185,6 +185,30 @@ if ($forceReset) {
     echo "[init] État CTF conservé (" . ($freshContainer ? "CTF_RESET_STATE=$resetMode" : "redémarrage du conteneur") . ").\n";
 }
 
+// ─── Points dégressifs ────────────────────────────────────────────────────────
+// La valeur d'un challenge baisse au fil des résolutions, et les points gagnés
+// sont figés à la résolution : ils sont donc stockés sur la soumission. Sur une
+// base créée avant ce changement, les anciennes soumissions reçoivent la valeur
+// de départ de leur challenge.
+$hasAwarded = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'submissions'
+       AND column_name = 'points_awarded'"
+)->fetchColumn();
+if (!$hasAwarded) {
+    $pdo->exec(
+        "ALTER TABLE submissions
+         ADD COLUMN points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+         COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif'
+         AFTER challenge_id"
+    );
+    $filled = $pdo->exec(
+        "UPDATE submissions s JOIN challenges c ON c.id = s.challenge_id
+         SET s.points_awarded = c.points"
+    );
+    echo "[init] Colonne submissions.points_awarded ajoutée ($filled soumissions reprises).\n";
+}
+
 // ─── Vues SQL (idempotentes) ──────────────────────────────────────────────────
 // CREATE OR REPLACE VIEW s'exécute à chaque démarrage du conteneur, ce qui
 // garantit que les vues existent même sur une DB créée avant leur introduction
@@ -236,8 +260,10 @@ $hasTeamSubmissions = (bool) $pdo->query(
 )->fetchColumn();
 if ($hasTeamSubmissions) {
     $moved = $pdo->exec(
-        "INSERT IGNORE INTO submissions (user_id, challenge_id, solve_time_ms, submitted_at)
-         SELECT solved_by, challenge_id, solve_time_ms, submitted_at FROM team_submissions"
+        "INSERT IGNORE INTO submissions
+             (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
+         SELECT ts.solved_by, ts.challenge_id, c.points, ts.solve_time_ms, ts.submitted_at
+         FROM team_submissions ts JOIN challenges c ON c.id = ts.challenge_id"
     );
     echo "[init] Flags d'équipe rendus à leurs auteurs : $moved.\n";
 }
@@ -252,30 +278,6 @@ if ($hasPlayMode) {
     echo "[init] Colonne users.play_mode supprimée.\n";
 }
 $pdo->exec("DELETE FROM activity_logs WHERE type LIKE 'team\\_%'");
-
-// ─── Points dégressifs ────────────────────────────────────────────────────────
-// La valeur d'un challenge baisse au fil des résolutions, et les points gagnés
-// sont figés à la résolution : ils sont donc stockés sur la soumission. Sur une
-// base créée avant ce changement, les anciennes soumissions reçoivent la valeur
-// de départ de leur challenge.
-$hasAwarded = (bool) $pdo->query(
-    "SELECT COUNT(*) FROM information_schema.columns
-     WHERE table_schema = DATABASE() AND table_name = 'submissions'
-       AND column_name = 'points_awarded'"
-)->fetchColumn();
-if (!$hasAwarded) {
-    $pdo->exec(
-        "ALTER TABLE submissions
-         ADD COLUMN points_awarded INT UNSIGNED NOT NULL DEFAULT 0
-         COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif'
-         AFTER challenge_id"
-    );
-    $filled = $pdo->exec(
-        "UPDATE submissions s JOIN challenges c ON c.id = s.challenge_id
-         SET s.points_awarded = c.points"
-    );
-    echo "[init] Colonne submissions.points_awarded ajoutée ($filled soumissions reprises).\n";
-}
 
 echo "[init] Initialisation terminée.\n";
 
