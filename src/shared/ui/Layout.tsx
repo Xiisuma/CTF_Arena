@@ -12,7 +12,7 @@ import { useCurrentUserRank } from "../../features/ranking/useCurrentUserRank";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
 
 const navItems = [
-  { to: "/", label: "Enigmes", icon: "🏴", adminOnly: false },
+  { to: "/", label: "Challenges", icon: "🏴", adminOnly: false },
   { to: "/ranking", label: "Classement", icon: "🏆", adminOnly: false },
   { to: "/achievements", label: "Succès", icon: "🎖️", adminOnly: false },
   { to: "/guide", label: "Règles", icon: "📜", adminOnly: false },

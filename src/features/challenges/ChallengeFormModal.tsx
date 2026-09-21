@@ -63,7 +63,7 @@ export function ChallengeFormModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <div className="w-full max-w-lg rounded-2xl border border-primary bg-card p-6 shadow-theme max-h-[90vh] overflow-y-auto">
         <h3 className="mb-5 text-xl font-bold text-primary">
-          {initial ? "Modifier" : "Ajouter"} une énigme — {category}
+          {initial ? "Modifier" : "Ajouter"} un challenge — {category}
         </h3>
         <div className="space-y-4">
           <div>

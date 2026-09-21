@@ -152,7 +152,7 @@ export function PlayersSection() {
                         </span>
                       )}
                     </h2>
-                    <p className="text-xs text-tertiary">{player.points} pts · {player.solved} énigme(s)</p>
+                    <p className="text-xs text-tertiary">{player.points} pts · {player.solved} challenge(s)</p>
                   </div>
                 </div>
                 <span className={`text-tertiary transition-transform duration-200 ${opened ? "rotate-180" : ""}`}>▼</span>

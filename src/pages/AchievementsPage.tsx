@@ -27,8 +27,17 @@ import {
 } from "../features/achievements/achievementUtils";
 import type { Achievement } from "../types";
 
+type CardsPerLine = 1 | 2 | 3;
+
+const CARDS_GRID_CLASS: Record<CardsPerLine, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+};
+
 export default function AchievementsPage() {
   const { user } = useAuth();
+  const [cardsPerLine, setCardsPerLine] = useState<CardsPerLine>(2);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Achievement | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -109,11 +118,33 @@ export default function AchievementsPage() {
   if (!user.isAdmin) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-black text-primary">🎖️ Succès</h1>
-          <p className="mt-1 text-sm text-tertiary">
-            Débloquez des succès en progressant dans le CTF.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-primary">🎖️ Succès</h1>
+            <p className="mt-1 text-sm text-tertiary">
+              Débloquez des succès en progressant dans le CTF.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-tertiary hidden sm:block">
+              Cartes par ligne :
+            </span>
+            <div className="flex rounded-xl bg-input p-1 gap-1">
+              {([1, 2, 3] as CardsPerLine[]).map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setCardsPerLine(n)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    cardsPerLine === n
+                      ? "bg-accent-primary text-white shadow-md"
+                      : "text-tertiary hover:text-secondary"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         {achievements.length === 0 ? (
           <EmptyState
@@ -122,7 +153,7 @@ export default function AchievementsPage() {
             hint="L'administrateur peut en créer depuis Paramètres."
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className={`grid gap-4 ${CARDS_GRID_CLASS[cardsPerLine]}`}>
             {achievements.map((a) => {
               const ua = myAchievements.find((x) => x.achievementId === a.id);
               return (
