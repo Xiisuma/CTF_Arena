@@ -535,6 +535,24 @@ function dynamic_points(int $basePoints, int $solveRank): int
   return max($value, $floor);
 }
 
+/**
+ * Mémorise un flag erroné pour que le joueur retrouve ses essais.
+ * Réservé au joueur qui l'a tapé : ces essais révèlent des réponses partielles.
+ */
+function record_flag_attempt(PDO $pdo, int $userId, int $challengeId, string $flag): void
+{
+  $flag = sanitize_string($flag, 255);
+  if ($flag === "") {
+    return;
+  }
+  $pdo
+    ->prepare(
+      "INSERT INTO flag_attempts (user_id, challenge_id, attempt, submitted_at)
+       VALUES (?, ?, ?, NOW())",
+    )
+    ->execute([$userId, $challengeId, $flag]);
+}
+
 /** Valeur que rapporterait le challenge au prochain joueur qui le résout. */
 function next_challenge_points(PDO $pdo, int $challengeId, int $basePoints): int
 {
@@ -1597,6 +1615,7 @@ switch ($action) {
         json_response(["ok" => true, "correct" => false]);
       }
       increment_flag_rate_limit($auth["id"]);
+      record_flag_attempt($pdo, (int) $auth["id"], $challengeId, $flagInput);
       log_activity("flag_wrong", (int) $auth["id"], $auth["username"], [
         "challenge" => $chal["title"] ?? "",
       ]);
@@ -1641,6 +1660,11 @@ switch ($action) {
       )
       ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
 
+    // Challenge résolu : son historique d'essais n'a plus lieu d'être
+    $pdo
+      ->prepare("DELETE FROM flag_attempts WHERE user_id = ? AND challenge_id = ?")
+      ->execute([$auth["id"], $challengeId]);
+
     evaluate_achievements_for_user($pdo, $auth["id"]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [
@@ -1676,6 +1700,45 @@ switch ($action) {
     );
     $stmt->execute([$userId, $limit, $offset]);
     json_response(["ok" => true, "flags" => $stmt->fetchAll()]);
+
+  case "get_flag_attempts":
+    // Strictement personnel : un essai erroné révèle une réponse partielle,
+    // personne d'autre ne doit le lire, pas même l'administrateur.
+    $auth = require_auth();
+    $pdo = get_pdo();
+    $stmt = $pdo->prepare(
+      'SELECT fa.id, fa.challenge_id, fa.attempt, fa.submitted_at,
+                    c.title AS challenge_title, c.category
+             FROM flag_attempts fa
+             JOIN challenges c ON c.id = fa.challenge_id
+             WHERE fa.user_id = :uid
+               AND NOT EXISTS (SELECT 1 FROM submissions s
+                               WHERE s.user_id = :uid2 AND s.challenge_id = fa.challenge_id)
+             ORDER BY c.title ASC, fa.submitted_at DESC
+             LIMIT 1000',
+    );
+    $stmt->execute([":uid" => $auth["id"], ":uid2" => $auth["id"]]);
+
+    // Regroupé par challenge : l'interface propose la liste des challenges
+    // commencés mais pas encore résolus, puis les essais de celui choisi.
+    $byChallenge = [];
+    foreach ($stmt->fetchAll() as $row) {
+      $id = (string) $row["challenge_id"];
+      if (!isset($byChallenge[$id])) {
+        $byChallenge[$id] = [
+          "challengeId" => $id,
+          "challengeTitle" => $row["challenge_title"],
+          "category" => $row["category"],
+          "attempts" => [],
+        ];
+      }
+      $byChallenge[$id]["attempts"][] = [
+        "id" => (string) $row["id"],
+        "flag" => $row["attempt"],
+        "submittedAt" => $row["submitted_at"],
+      ];
+    }
+    json_response(["ok" => true, "challenges" => array_values($byChallenge)]);
 
   case "get_all_flags":
     require_admin();
@@ -1890,6 +1953,7 @@ switch ($action) {
     $userId = (int) (get_body()["userId"] ?? 0);
     $pdo = get_pdo();
     $pdo->prepare("DELETE FROM submissions WHERE user_id = ?")->execute([$userId]);
+    $pdo->prepare("DELETE FROM flag_attempts WHERE user_id = ?")->execute([$userId]);
     $pdo->prepare("DELETE FROM user_achievements WHERE user_id = ?")->execute([$userId]);
     notify_ws("players");
     json_response(["ok" => true]);
@@ -2755,6 +2819,9 @@ switch ($action) {
                VALUES (?, ?, ?, ?, NOW())',
       )
       ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
+    $pdo
+      ->prepare("DELETE FROM flag_attempts WHERE user_id = ? AND challenge_id = ?")
+      ->execute([$auth["id"], $challengeId]);
     evaluate_achievements_for_user($pdo, $auth["id"]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [

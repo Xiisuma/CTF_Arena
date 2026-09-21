@@ -126,6 +126,21 @@ export interface UserSearchResult {
   username: string;
 }
 
+// ─── Essais de flags ──────────────────────────────────────────────────────────
+
+export interface FlagAttempt {
+  id: string;
+  flag: string;
+  submittedAt: string;
+}
+
+export interface FlagAttemptGroup {
+  challengeId: string;
+  challengeTitle: string;
+  category: CategoryType;
+  attempts: FlagAttempt[];
+}
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export type NotifType =

@@ -131,6 +131,22 @@ CREATE TABLE IF NOT EXISTS submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Flags validés — une ligne = un challenge résolu par un joueur.';
 
+-- ─── Essais de flags ──────────────────────────────────────────────────────────
+-- Historique des flags erronés, visible du seul joueur qui les a tapés.
+-- Les essais d'un challenge sont effacés dès qu'il est résolu.
+
+CREATE TABLE IF NOT EXISTS flag_attempts (
+    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT UNSIGNED NOT NULL,
+    challenge_id INT UNSIGNED NOT NULL,
+    attempt      VARCHAR(255) NOT NULL,
+    submitted_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fa_user_challenge (user_id, challenge_id, submitted_at DESC),
+    CONSTRAINT fk_flag_attempts_users      FOREIGN KEY (user_id)      REFERENCES users(id)      ON DELETE CASCADE,
+    CONSTRAINT fk_flag_attempts_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Flags erronés tentés par un joueur sur un challenge non résolu.';
+
 -- ─── Achievements ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS achievements (

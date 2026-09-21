@@ -318,3 +318,23 @@ Pour 100 points : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
       le profil public et la liste admin
 - [ ] Redémarrage du backend et smoke test sur base neuve : à refaire, Docker Desktop s'est arrêté
 
+## Point 4 — historique des essais (2026-09-21, branche `features-historique-essais`)
+
+Demande d'Axel : dans le profil, un onglet « Mes Essais » à côté de Flags / Stats / Amis, avec un
+sélecteur listant uniquement les challenges commencés mais pas résolus, puis l'historique des flags
+tentés sur celui choisi. Les essais d'un challenge disparaissent dès qu'il est résolu.
+
+- [x] Table `flag_attempts` (schéma + migration idempotente dans init.php)
+- [x] `submit_flag` : un flag erroné est mémorisé, sauf pour un challenge mystère (ne rien révéler)
+- [x] Flag correct : les essais du challenge sont effacés (aussi pour le flag mystère)
+- [x] `reset_user_progress` efface également les essais
+- [x] Endpoint `get_flag_attempts` : joueur connecté uniquement, jamais ceux d'un autre, groupé par
+      challenge et filtré sur les challenges non résolus
+- [x] Onglet « 🧪 Mes Essais » + `AttemptsSection` (sélecteur + liste des essais datés)
+- [x] Test MSW sur `getFlagAttempts`
+
+### Vérification
+- [x] typecheck, lint, 89/89 tests
+- [ ] `php -l`, parcours sur stack jetable (essai enregistré, disparition après résolution,
+      isolation entre joueurs) : à faire, Docker Desktop est arrêté
+

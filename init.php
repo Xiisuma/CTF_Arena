@@ -209,6 +209,21 @@ if (!$hasAwarded) {
     echo "[init] Colonne submissions.points_awarded ajoutée ($filled soumissions reprises).\n";
 }
 
+// ─── Essais de flags ──────────────────────────────────────────────────────────
+// Historique des flags erronés, visible du seul joueur concerné. Effacé pour un
+// challenge dès qu'il le résout.
+$pdo->exec("CREATE TABLE IF NOT EXISTS flag_attempts (
+    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT UNSIGNED NOT NULL,
+    challenge_id INT UNSIGNED NOT NULL,
+    attempt      VARCHAR(255) NOT NULL,
+    submitted_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fa_user_challenge (user_id, challenge_id, submitted_at DESC),
+    CONSTRAINT fk_flag_attempts_users      FOREIGN KEY (user_id)      REFERENCES users(id)      ON DELETE CASCADE,
+    CONSTRAINT fk_flag_attempts_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+echo "[init] Table flag_attempts vérifiée.\n";
+
 // ─── Vues SQL (idempotentes) ──────────────────────────────────────────────────
 // CREATE OR REPLACE VIEW s'exécute à chaque démarrage du conteneur, ce qui
 // garantit que les vues existent même sur une DB créée avant leur introduction
