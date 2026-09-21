@@ -186,7 +186,9 @@ export function ChallengeModal({
                 ✍️ Vous êtes l'auteur de ce challenge
               </p>
               <p className="mt-1 text-xs text-tertiary">
-                Vous ne pouvez pas le valider, il ne rapporte aucun point à son auteur.
+                {challenge.authorLocked
+                  ? "Vos propres challenges se valident en dernier : résolvez d'abord tous ceux des autres."
+                  : "Vous avez résolu tous les challenges des autres : celui-ci est déverrouillé."}
               </p>
             </div>
           )}
@@ -207,7 +209,7 @@ export function ChallengeModal({
               </p>
             </div>
           )}
-          {!solved && !success && !challenge.mine && (
+          {!solved && !success && !challenge.authorLocked && (
             <div>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Soumettre le flag

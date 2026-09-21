@@ -36,6 +36,8 @@ export interface Challenge {
   canEdit: boolean;
   /** L'utilisateur courant est-il l'auteur de ce challenge ? */
   mine: boolean;
+  /** Challenge de l'auteur, verrouillé tant qu'il reste des challenges des autres à résoudre. */
+  authorLocked: boolean;
   description: string;
   files: ChallengeFile[];
   // flag_encrypted n'est jamais renvoyé par l'API — le flag est saisi séparément par l'admin

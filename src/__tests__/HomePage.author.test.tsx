@@ -33,6 +33,7 @@ const challenge = (over: Partial<Challenge> = {}): Challenge => ({
   solves: 0,
   canEdit: false,
   mine: false,
+  authorLocked: false,
   description: "",
   files: [],
   createdAt: "",

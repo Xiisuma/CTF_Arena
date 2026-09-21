@@ -587,6 +587,22 @@ function record_flag_attempt(PDO $pdo, int $userId, int $challengeId, string $fl
     ->execute([$userId, $challengeId, $flag]);
 }
 
+/**
+ * Nombre de challenges écrits par quelqu'un d'autre que ce joueur n'a pas encore
+ * résolus. Un auteur ne débloque ses propres challenges qu'une fois ce compte à 0.
+ */
+function unsolved_others_count(PDO $pdo, int $userId): int
+{
+  $stmt = $pdo->prepare(
+    'SELECT COUNT(*) FROM challenges c
+         WHERE (c.created_by IS NULL OR c.created_by <> :uid)
+           AND NOT EXISTS (SELECT 1 FROM submissions s
+                           WHERE s.user_id = :uid2 AND s.challenge_id = c.id)',
+  );
+  $stmt->execute([":uid" => $userId, ":uid2" => $userId]);
+  return (int) $stmt->fetchColumn();
+}
+
 /** Valeur que rapporterait le challenge au prochain joueur qui le résout. */
 function next_challenge_points(PDO $pdo, int $challengeId, int $basePoints): int
 {
@@ -1426,6 +1442,7 @@ switch ($action) {
     foreach ($solvesStmt->fetchAll() as $row) {
       $solvesByChal[$row["challenge_id"]] = (int) $row["solves"];
     }
+    $unsolvedOthers = $auth["is_admin"] ? 0 : unsolved_others_count($pdo, (int) $auth["id"]);
 
     // Retourner uniquement les métadonnées — pas de file_get_contents pour éviter le DoS
     // Le contenu est servi à la demande via l'endpoint download_file
@@ -1447,6 +1464,9 @@ switch ($action) {
       // et le serveur revérifie à chaque appel.
       $ch["mine"] = (int) $ch["created_by"] === (int) $auth["id"];
       $ch["canEdit"] = $auth["is_admin"] || $ch["mine"];
+      // Ses propres challenges restent verrouillés tant qu'il reste des
+      // challenges des autres à résoudre.
+      $ch["authorLocked"] = $ch["mine"] && $unsolvedOthers > 0;
       unset($ch["created_by"]);
     }
     json_response(["ok" => true, "challenges" => $challenges]);
@@ -1656,8 +1676,17 @@ switch ($action) {
     if (!$chal) {
       json_error("Challenge introuvable");
     }
+    // Un auteur passe en dernier sur ses propres challenges : il doit d'abord
+    // avoir résolu tous ceux écrits par les autres.
     if ((int) $chal["created_by"] === (int) $auth["id"]) {
-      json_error("Vous ne pouvez pas valider un challenge que vous avez créé");
+      $remaining = unsolved_others_count($pdo, (int) $auth["id"]);
+      if ($remaining > 0) {
+        json_error(
+          "Vos propres challenges se valident en dernier : il vous reste $remaining challenge" .
+            ($remaining > 1 ? "s" : "") .
+            " des autres à résoudre",
+        );
+      }
     }
 
     $expectedFlag = strtolower(trim(decrypt_flag($chal["flag_encrypted"])));
