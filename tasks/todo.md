@@ -188,13 +188,36 @@ TypeScript : 0 erreurs ✅
 ## Chantier 2026-09-14 — ordre : 2 → 7 → 8 → 1 → 4 → 5 → 3 → 6
 
 - [x] 2. CTF « non démarré » après un rebuild, sans casser la reprise après crash
-- [ ] 7. Supprimer bonus / malus (API, table, UI, calcul des scores)
-- [ ] 8. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
-- [ ] 1. Points dégressifs selon le nombre de résolutions
+
+Renumérotation du 14/09 (ordre d'exécution) :
+
+- [x] 1. Supprimer bonus / malus (API, table, UI, calcul des scores)
+- [x] 2. Supprimer tout le système d'équipes (API, tables, UI, mode multijoueur)
+- [ ] 3. Points dégressifs selon le nombre de résolutions
 - [ ] 4. Historique des flags testés par challenge (visible par le joueur seul)
 - [ ] 5. Rôle auteur : gère uniquement les challenges qu'il a créés
-- [ ] 3. Événement First Blood
-- [ ] 6. Challenge Mii
+- [ ] 6. Événement First Blood
+- [ ] 7. Challenge Mii
+
+### Plan — nouveau point 1 (branche `fix-suppression-bonus-malus` → PR vers `fix`)
+1. api.php : retirer les cases `add_bonus` / `add_malus`, leurs types de log, le `DELETE` dans
+   `reset_user_progress`, et le terme `bonus_malus` des 5 calculs de points
+2. init.php + sql/init/03_views.sql : `v_solo_ranking` sans bonus_malus ; init.php supprime la table
+   (`DROP TABLE IF EXISTS`) sur les bases existantes — vue recréée avant le DROP
+3. sql/init/01_tables.sql : retirer la table
+4. Front : `addBonusPoints` / `addMalusPoints`, boutons de PlayersSection, libellés du journal, texte du Guide
+5. scripts/smoke-api.py et README
+6. Vérifier : typecheck, lint, tests, stack jetable (init OK, table absente, classement et
+   `add_bonus` → action inconnue, smoke test sans erreur)
+
+### Vérification — point 1 (stack jetable `-p ctfp1`)
+- [x] typecheck, lint, 82/82 tests, `php -l` sur api.php et init.php
+- [x] ancien code : joueur à 100 pts + bonus 25 → 125 dans get_players et le classement
+- [x] rebuild sur la branche : 100 pts partout (get_players, classement, profil public)
+- [x] table `bonus_malus` et entrées de journal supprimées, vue sans référence
+- [x] `add_bonus` / `add_malus` refusés, `reset_user_progress` fonctionne sans la table
+- [x] redémarrage du backend : init repasse sans erreur (DROP idempotent)
+- [x] base neuve : smoke test 98 appels, 0 échec
 
 ### Plan — point 2
 Problème : depuis le 25/08, `init.php` conserve l'état (`INSERT IGNORE`) pour qu'un crash
@@ -216,3 +239,82 @@ Le système de fichiers d'un conteneur survit à un redémarrage, pas à une rec
 - [x] recréation avec `CTF_RESET_STATE=0` → partie conservée
 - [x] `CTF_RESET_STATE=1` → remise à zéro même après un crash
 - [x] instance principale rebuildée : `gameStarted` true → false, journal « conteneur neuf »
+
+## Correctif 2026-09-15 — challenges visibles avant le lancement
+
+Branche `fix-masquer-challenges-avant-debut` → PR vers `fix`.
+Problème : CTF non démarré, les joueurs ouvraient déjà les catégories et parcouraient les challenges.
+
+- [x] api.php : `ctf_game_started()` ; `get_challenges` renvoie une liste vide et `download_file` 403 aux joueurs tant que `game_started` = 0 (l'admin garde tout)
+- [x] HomePage : liste des catégories remplacée par la bannière « Le CTF commence bientôt » pour les joueurs
+- [x] HomePage : rechargement automatique des challenges quand la phase quitte `not_started`
+- [x] Test `HomePage.gate.test.tsx` (4 cas) — échoue sur l'ancien code, passe sur le nouveau
+- [x] typecheck, lint, 86/86 tests, `php -l`
+- [x] Stack jetable : joueur 0 challenge et fichier refusé avant lancement, admin voit tout, joueur voit tout après lancement
+
+## Point 2 — suppression du système d'équipes (2026-09-15)
+
+Branche `fix-suppression-equipes` → PR vers `fix`. Basée sur les PR #3 et #4 (pas encore mergées)
+pour éviter les conflits dans api.php.
+
+- [x] API : 15 actions d'équipe, `update_play_mode`, `get_team_ranking`, branches multijoueur de
+      `submit_flag` / `submit_mystery_flag` / `get_user_flags`, place « équipe » du podium, `play_mode` partout
+- [x] Base : tables `teams`, `team_members`, `team_bans`, `team_submissions`, vue `v_team_ranking`,
+      colonne `users.play_mode` ; `sql/migration_v5.sql` supprimé
+- [x] Migration init.php : flags d'équipe rendus au joueur qui les a trouvés, puis suppression (idempotente)
+- [x] Interface : pages et onglet admin Teams, onglet Teams du classement, « Ma Team » du profil,
+      choix du mode à l'inscription, boîte de notifications Team, règle du guide ; podium à 4 places
+- [x] Tests MSW/hook mis à jour, README, smoke-api.py (vérifie que les actions retirées sont refusées)
+
+### Vérification (stack jetable `-p ctfp2t`)
+- [x] typecheck, lint, 83/83 tests, `php -l`
+- [x] Ancien code : alice + bob en équipe (2 flags d'équipe), carol en solo
+- [x] Rebuild sur la branche : « Flags d'équipe rendus à leurs auteurs : 2 », colonne supprimée,
+      tables/vue/journaux supprimés ; classement alice 100, bob 200, carol 200
+- [x] 8 actions retirées → 404 ; podium sans équipe, `podium_revealed=5` refusé ; inscription sans mode
+- [x] Redémarrage : init sans erreur ; base neuve : smoke test 81 appels, 0 échec
+- [x] Navigateur : formulaire d'inscription sans choix Solo / Équipe
+
+## Retours du 19/09 (branche `fix-profil-classement-barre` → PR vers `fix`)
+
+- [x] Avatar / bio du profil appliqués sans rechargement : `me`, `login` et `register` renvoient
+      `avatarEmoji` et `bio` (ils étaient absents de la réponse), et `AuthContext.refreshUser()`
+      relit le compte après la sauvegarde du profil
+- [x] Classement progressif : `v_solo_ranking` ne garde que les joueurs avec au moins un flag validé
+- [x] Barre de rang masquée tant que le CTF n'est pas lancé, comme les énigmes
+
+### Vérification (stack jetable `-p ctfp4`)
+- [x] typecheck, lint, 86/86 tests (2 nouveaux sur la barre, 1 sur `refreshUser`), `php -l`
+- [x] Classement vide avant le premier flag, puis alice seule après le sien ; bob absent du podium
+      et sans rang sur son profil public
+- [x] `login` / `me` renvoient l'avatar et la bio ; après changement, `me` renvoie le nouvel emoji ;
+      une inscription repart sur 🎯
+- [x] Base neuve : smoke test 81 appels, 0 échec
+
+## Point 3 — points dégressifs (2026-09-21, branche `features-points-degressifs`)
+
+Choix d'Axel : décote lente au début puis de plus en plus rapide, plancher à 25 % de la valeur
+de départ, atteint à la 12e résolution, points figés au moment de la résolution.
+
+Courbe : `points(n) = P − (P − P×25 %) × ((n−1)/12)²`, bornée au plancher.
+Pour 100 points : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+
+- [x] api.php : `dynamic_points()` + `next_challenge_points()`, réglables par
+      `SCORING_DECAY_SOLVES` et `SCORING_FLOOR_PERCENT`
+- [x] Colonne `submissions.points_awarded` : points figés, migration idempotente dans init.php
+      (placée avant les vues, qui la référencent)
+- [x] Tous les calculs de score basculés sur `SUM(s.points_awarded)` : vues, classement, liste
+      admin, profil public, historique des flags, succès
+- [x] `get_challenges` renvoie `currentPoints` et `solves` ; `points` reste la valeur de départ
+      éditée par l'admin
+- [x] Carte et modale : valeur actuelle + nombre de résolutions ; message de succès basé sur les
+      points réellement gagnés
+
+### Vérification (stack jetable `-p ctfp5`)
+- [x] typecheck, lint, 86/86 tests, `php -l`
+- [x] Base existante : les 2 anciennes soumissions gardent 100 points après migration
+- [x] 14 résolutions successives : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, 25, 25
+- [x] Points figés : 1er à 100, 5e à 92, dernier à 25, cohérent dans le classement, l'historique,
+      le profil public et la liste admin
+- [ ] Redémarrage du backend et smoke test sur base neuve : à refaire, Docker Desktop s'est arrêté
+

@@ -6,8 +6,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "../categories/store";
 import {
-  addBonusPoints,
-  addMalusPoints,
   deleteUser,
   evaluateAchievements,
   getAchievements,
@@ -155,12 +153,6 @@ export function PlayersSection() {
               {opened && (
                 <div className="space-y-4 px-5 pb-5">
                   <div className="flex flex-wrap gap-2">
-                    <ActionButton label="+25 pts (Bonus)" color="emerald" onClick={async () => {
-                      await addBonusPoints(player.id, 25); forceRefresh();
-                    }} />
-                    <ActionButton label="-25 pts (Malus)" color="orange" onClick={async () => {
-                      await addMalusPoints(player.id, 25); forceRefresh();
-                    }} />
                     <ActionButton label="Réinitialiser" color="amber" onClick={async () => {
                       requestConfirm({
                         title: "Réinitialiser le joueur",

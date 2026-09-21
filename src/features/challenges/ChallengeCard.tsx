@@ -57,8 +57,16 @@ export function ChallengeCard({
             {DIFFICULTY_LABELS[diff]}
           </span>
           <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs font-bold text-amber-300">
-            {challenge.points} pts
+            {challenge.currentPoints} pts
           </span>
+          {challenge.solves > 0 && (
+            <span
+              className="text-[10px] text-tertiary"
+              title={`Valeur de départ : ${challenge.points} pts — elle baisse à chaque résolution`}
+            >
+              {challenge.solves} résolution{challenge.solves > 1 ? "s" : ""}
+            </span>
+          )}
           {challenge.files && challenge.files.length > 0 && (
             <span className="text-xs text-tertiary">
               📎 {challenge.files.length}

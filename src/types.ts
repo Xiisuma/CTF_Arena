@@ -7,7 +7,6 @@ export interface User {
   // password n'est jamais renvoyé par l'API — ne pas l'exposer côté client
   isAdmin: boolean;
   createdAt: string;
-  playMode: 'solo' | 'multiplayer';
   avatarEmoji?: string;
   bio?: string;
 }
@@ -27,7 +26,12 @@ export interface Challenge {
   id: string;
   title: string;
   category: CategoryType;
+  /** Valeur de départ, celle que l'admin saisit. */
   points: number;
+  /** Valeur que rapporte le challenge au prochain joueur qui le résout. */
+  currentPoints: number;
+  /** Nombre de joueurs l'ayant déjà résolu. */
+  solves: number;
   description: string;
   files: ChallengeFile[];
   // flag_encrypted n'est jamais renvoyé par l'API — le flag est saisi séparément par l'admin
@@ -99,33 +103,6 @@ export interface FriendRequest {
   createdAt: string;
 }
 
-export type TeamRole = "owner" | "admin" | "member";
-export type TeamVisibility = "public" | "private";
-
-export interface Team {
-  id: string;
-  name: string;
-  description: string;
-  emoji: string;
-  isPublic: boolean;
-  ownerId: string;
-  createdAt: string;
-}
-
-export interface TeamMember {
-  id: string;
-  teamId: string;
-  userId: string;
-  role: TeamRole;
-  joinedAt: string;
-}
-
-export interface TeamBan {
-  id: string;
-  teamId: string;
-  userId: string;
-  bannedAt: string;
-}
 // ─── Ranking ──────────────────────────────────────────────────────────────────
 
 export interface RankingRow {
@@ -134,30 +111,12 @@ export interface RankingRow {
   solved: number;
 }
 
-export interface TeamRankingRow {
-  team: Team;
-  points: number;
-  solved: number;
-  memberCount: number;
-}
-
 export interface PlayerWithPoints {
   id: string;
   username: string;
   isAdmin: boolean;
   points: number;
   solved: number;
-}
-
-// ─── Teams (enriched) ─────────────────────────────────────────────────────────
-
-export interface TeamMemberWithStats {
-  id: string;
-  username: string;
-  role: TeamRole;
-  points: number;
-  solved: number;
-  joinedAt: string;
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -173,13 +132,9 @@ export type NotifType =
   | "friend_flag"
   | "friend_achievement"
   | "friend_request"
-  | "team_flag"
-  | "team_achievement"
-  | "rank1"
-  | "team_join"
-  | "team_role_change";
+  | "rank1";
 
-export type NotifBox = "perso" | "amis" | "team";
+export type NotifBox = "perso" | "amis";
 
 export interface AppNotification {
   id: string;
@@ -199,7 +154,7 @@ export interface CTFState {
   gameStarted: boolean;
   scrambleStartedAt: string; // ISO datetime string ou '' si pas encore déclenché
   podiumVisible: boolean;
-  podiumRevealed: number;   // 0-5 : nombre de gagnants révélés sur le podium
+  podiumRevealed: number;   // 0-4 : nombre de gagnants révélés sur le podium
   eventTheme: string;       // '' | 'halloween' | 'noel' | 'paques'
 }
 

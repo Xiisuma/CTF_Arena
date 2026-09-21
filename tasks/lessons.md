@@ -136,3 +136,18 @@
 2026-09-14 | Test de crash via `docker exec … kill -9 1` : le noyau ignore SIGKILL envoyé au PID 1 depuis son propre namespace, le conteneur n'a jamais redémarré et le test passait sans rien vérifier. `docker kill` depuis l'hôte compte comme un arrêt manuel et n'est pas relancé non plus | Pour simuler un crash relancé par restart:always : `docker exec <c> kill -TERM 1`, puis vérifier que RestartCount a bien augmenté. Un test de résilience doit prouver que l'incident a eu lieu, pas seulement que l'état final est correct.
 
 2026-09-14 | Script de vérification lancé sur un conteneur hérité du passage précédent (créé avec CTF_RESET_STATE=1) : faux échecs | Chaque passage de test repart d'un état propre et explicite (recréation avec l'environnement par défaut, affichage de la variable réelle via docker inspect) avant le premier scénario.
+
+2026-09-14 | `git checkout -b fix/suppression-bonus-malus` refusé : une branche `fix` existe déjà, et git ne peut pas avoir à la fois la ref `fix` et un dossier `fix/` | Avec des branches catégories permanentes (`fix`, `features`…), nommer les branches de tâche avec un tiret : `fix-<sujet>`, `features-<sujet>`. Jamais de `/` après un nom de branche existant.
+
+2026-09-15 | Le choix du 20/05 (« afficher les challenges avant le lancement, bloquer seulement la soumission ») laissait les joueurs lire toutes les épreuves avant l'heure ; Axel veut qu'on ne voie rien | Un contenu qui ne doit pas être vu se protège côté API (réponse vide / 403 pour les non-admins), pas seulement en masquant l'interface. Quand une donnée arrive vide à cause d'une phase, prévoir son rechargement au changement de phase.
+
+2026-09-15 | Premier passage du smoke test sur une base neuve : cascade de 401 car le compte admin n'existait pas encore (init.php attend la base 10 s alors que le healthcheck est déjà vert) | Après un `down -v && up`, attendre la ligne « Initialisation terminée » dans les logs du backend avant de lancer un test, pas seulement le statut healthy.
+
+2026-09-15 | Suppression d'une fonctionnalité qui stocke des données de jeu (team_submissions) : un DROP direct aurait effacé les points des joueurs concernés | Avant de supprimer une table, se demander quelles données utilisateur elle porte et les migrer vers le modèle qui reste (ici : flag rendu au joueur qui l'a trouvé), dans une migration idempotente testée sur une base qui contient ces données.
+
+2026-09-19 | « L'avatar du profil ne change pas » : le correctif côté React (relire l'utilisateur après sauvegarde) ne suffisait pas, car `me` et `login` ne renvoyaient tout simplement pas `avatar_emoji` ni `bio` — l'interface retombait toujours sur l'emoji par défaut | Quand une valeur affichée semble « ne pas se mettre à jour », vérifier d'abord ce que l'API renvoie réellement (un appel direct à l'endpoint) avant de corriger l'état côté client. Une colonne ajoutée en base doit être ajoutée dans TOUS les SELECT qui composent la réponse utilisateur (register, login, me).
+
+2026-09-21 | Migration ajoutant `submissions.points_awarded` placée à la fin de init.php, après la recréation des vues qui référencent déjà la colonne : `Column not found: 1054 Unknown column 's.points_awarded'`, backend en boucle de redémarrage | Dans init.php, l'ordre est imposé par les dépendances : colonnes et tables d'abord, vues ensuite. Toute migration de schéma doit être écrite AVANT le bloc `CREATE OR REPLACE VIEW`, jamais après.
+
+2026-09-21 | Le rattrapage des flags d'équipe (INSERT dans submissions) n'alimentait pas la nouvelle colonne `points_awarded` : les flags récupérés seraient repartis à 0 point | Quand une colonne obligatoire pour le score est ajoutée, relire tous les INSERT existants sur la table, y compris ceux des migrations précédentes.
+

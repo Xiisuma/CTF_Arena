@@ -5,8 +5,8 @@
  * Changements v4.0 :
  *   - Suppression des colonnes dénormalisées de submissions
  *     (challenge_title, category, points) — JOIN challenges systématique
- *   - SELECT * éliminés (get_teams, get_user_team, get_achievements, get_team_ranking)
- *   - compute_ranking_from_db : SUM(c.points) via JOIN challenges
+ *   - SELECT * éliminés (get_achievements)
+ *   - compute_ranking_from_db : SUM(submissions.points_awarded)
  */
 
 declare(strict_types=1);
@@ -87,6 +87,13 @@ define("RATE_LIMIT_MAX", (int) (getenv("RATE_LIMIT_MAX") ?: 5));
 define("RATE_LIMIT_WINDOW", (int) (getenv("RATE_LIMIT_WINDOW") ?: 300)); // 5 minutes
 // Tentatives de flag erronées par utilisateur (clé "flag:{userId}" dans rate_limits)
 define("FLAG_ATTEMPT_MAX", (int) (getenv("FLAG_ATTEMPT_MAX") ?: 5));
+
+// ─── Points dégressifs ───────────────────────────────────────────────────────
+// La valeur d'un challenge baisse au fil des résolutions : lentement au début,
+// de plus en plus vite, jusqu'à un plancher. SCORING_DECAY_SOLVES est le rang
+// de résolution à partir duquel le plancher est atteint.
+define("SCORING_DECAY_SOLVES", max(1, (int) (getenv("SCORING_DECAY_SOLVES") ?: 12)));
+define("SCORING_FLOOR_PERCENT", min(100, max(0, (int) (getenv("SCORING_FLOOR_PERCENT") ?: 25))));
 define("FLAG_ATTEMPT_WINDOW", (int) (getenv("FLAG_ATTEMPT_WINDOW") ?: 60)); // 1 minute
 // Créations de comptes par IP. Compteur distinct de celui des connexions : sur
 // un événement sur site, tous les joueurs partagent l'IP publique du lieu, et
@@ -162,7 +169,7 @@ function get_body(): array
  * Les clients React abonnés reçoivent l'événement et rafraîchissent sans polling.
  * Timeout court (0.3s) pour ne pas bloquer la réponse PHP si ws-server est indisponible.
  *
- * @param string $type  'players' | 'teams' | 'challenges' | 'ctf_state'
+ * @param string $type  'players' | 'challenges' | 'ctf_state'
  */
 function notify_ws(string $type, ?int $targetUserId = null): void
 {
@@ -181,27 +188,6 @@ function notify_ws(string $type, ?int $targetUserId = null): void
     ],
   ]);
   @file_get_contents("http://ws-server:8080/notify", false, $ctx);
-}
-
-/**
- * Notifie chaque membre d'une team via WS (notification ciblée).
- * Utilisé pour les events team : join, role change, kick, etc.
- * @param int $excludeUserId  userId à ne pas notifier (ex: le joueur qui a agi)
- */
-function notify_team_members(string $teamId, int $excludeUserId = 0): void
-{
-  try {
-    $pdo = get_pdo();
-    $stmt = $pdo->prepare("SELECT user_id FROM team_members WHERE team_id = ?");
-    $stmt->execute([$teamId]);
-    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $uid) {
-      if ((int) $uid !== $excludeUserId) {
-        notify_ws("notification", (int) $uid);
-      }
-    }
-  } catch (\Throwable) {
-    /* ne jamais bloquer sur la notification */
-  }
 }
 
 /**
@@ -238,15 +224,8 @@ function log_activity(string $type, ?int $userId, string $username, array $data 
     "challenge_deleted" => "gameplay",
     "achievement_unlocked" => "gameplay",
     "ctf_state_change" => "gameplay",
-    "team_join" => "teams",
-    "team_leave" => "teams",
-    "team_kick" => "teams",
-    "team_promote" => "teams",
-    "team_demote" => "teams",
     "friend_request_sent" => "social",
     "player_deleted" => "admin",
-    "bonus_added" => "admin",
-    "malus_added" => "admin",
     "progress_reset" => "admin",
     "profile_updated" => "social",
     "event_triggered" => "admin",
@@ -524,6 +503,46 @@ function require_admin(): array
   return $user;
 }
 
+// Avant le lancement de la partie, les joueurs ne doivent rien voir des
+// épreuves : le masquage côté interface ne suffit pas, l'API répond déjà.
+function ctf_game_started(PDO $pdo): bool
+{
+  $stmt = $pdo->prepare("SELECT state_value FROM ctf_state WHERE state_key = 'game_started'");
+  $stmt->execute();
+  return $stmt->fetchColumn() === "1";
+}
+
+// ─── Points dégressifs ───────────────────────────────────────────────────────
+
+/**
+ * Valeur d'un challenge pour la n-ième résolution.
+ *
+ * Courbe quadratique : la décote est lente sur les premières résolutions puis
+ * s'accélère, jusqu'au plancher (SCORING_FLOOR_PERCENT % de la valeur de
+ * départ) atteint à la SCORING_DECAY_SOLVES-ième résolution suivante.
+ * Exemple avec 100 points, un plancher de 25 % et 12 résolutions :
+ * 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+ *
+ * @param int $basePoints  valeur de départ du challenge
+ * @param int $solveRank   rang de la résolution (1 = premier à résoudre)
+ */
+function dynamic_points(int $basePoints, int $solveRank): int
+{
+  $floor = (int) round(($basePoints * SCORING_FLOOR_PERCENT) / 100);
+  $elapsed = min(max($solveRank - 1, 0), SCORING_DECAY_SOLVES);
+  $ratio = $elapsed / SCORING_DECAY_SOLVES;
+  $value = (int) round($basePoints - ($basePoints - $floor) * $ratio * $ratio);
+  return max($value, $floor);
+}
+
+/** Valeur que rapporterait le challenge au prochain joueur qui le résout. */
+function next_challenge_points(PDO $pdo, int $challengeId, int $basePoints): int
+{
+  $stmt = $pdo->prepare("SELECT COUNT(*) FROM submissions WHERE challenge_id = ?");
+  $stmt->execute([$challengeId]);
+  return dynamic_points($basePoints, (int) $stmt->fetchColumn() + 1);
+}
+
 // ─── Classement ──────────────────────────────────────────────────────────────
 
 function compute_ranking_from_db(PDO $pdo): array
@@ -532,11 +551,9 @@ function compute_ranking_from_db(PDO $pdo): array
     ->query(
       'SELECT u.id AS user_id, u.username,
                 COUNT(s.id) AS flags_found,
-                COALESCE(SUM(c.points), 0) +
-                COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0) AS total_points
+                COALESCE(SUM(s.points_awarded), 0) AS total_points
          FROM users u
          LEFT JOIN submissions s ON s.user_id = u.id
-         LEFT JOIN challenges  c ON c.id      = s.challenge_id
          WHERE u.is_admin = 0
          GROUP BY u.id, u.username
          ORDER BY total_points DESC, flags_found DESC',
@@ -556,16 +573,13 @@ function evaluate_achievements_for_user(PDO $pdo, int $userId): void
   }
 
   $flagsStmt = $pdo->prepare(
-    'SELECT s.id, s.challenge_id, s.submitted_at, c.category, c.points
+    'SELECT s.id, s.challenge_id, s.submitted_at, c.category, s.points_awarded AS points
          FROM submissions s JOIN challenges c ON c.id = s.challenge_id WHERE s.user_id = ?',
   );
   $flagsStmt->execute([$userId]);
   $userFlags = $flagsStmt->fetchAll();
 
   $totalPoints = (int) array_sum(array_column($userFlags, "points"));
-  $bmStmt = $pdo->prepare("SELECT SUM(points) FROM bonus_malus WHERE user_id = ?");
-  $bmStmt->execute([$userId]);
-  $totalPoints += (int) $bmStmt->fetchColumn();
 
   $achStmt = $pdo->prepare(
     'SELECT a.* FROM achievements a WHERE a.id NOT IN
@@ -898,11 +912,6 @@ switch ($action) {
     if (!in_array($gender, ["male", "female", "other"], true)) {
       json_error("Genre invalide");
     }
-    $playMode = sanitize_string($body["play_mode"] ?? "solo");
-    if (!in_array($playMode, ["solo", "multiplayer"], true)) {
-      $playMode = "solo";
-    }
-
     $pdo = get_pdo();
     $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1");
     $stmt->execute([$username, $email]);
@@ -921,9 +930,9 @@ switch ($action) {
     $hash = password_hash($password, PASSWORD_BCRYPT, ["cost" => 12]);
     $pdo
       ->prepare(
-        "INSERT INTO users (username, email, password_hash, age, gender, play_mode, is_admin, created_at) VALUES (?, ?, ?, ?, ?, ?, 0, NOW())",
+        "INSERT INTO users (username, email, password_hash, age, gender, is_admin, created_at) VALUES (?, ?, ?, ?, ?, 0, NOW())",
       )
-      ->execute([$username, $email, $hash, $age, $gender, $playMode]);
+      ->execute([$username, $email, $hash, $age, $gender]);
     $user_id = (int) $pdo->lastInsertId();
 
     // Compter chaque inscription réussie pour limiter la création en masse.
@@ -946,7 +955,8 @@ switch ($action) {
         "email" => $email,
         "age" => $age,
         "gender" => $gender,
-        "playMode" => $playMode,
+        "avatarEmoji" => "🎯",
+        "bio" => "",
         "isAdmin" => false,
       ],
       "csrf" => $_SESSION["csrf_token"],
@@ -997,7 +1007,7 @@ switch ($action) {
       json_error("Veuillez entrer une adresse email valide");
     }
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, password_hash, age, gender, play_mode FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
+      "SELECT id, username, email, password_hash, age, gender, avatar_emoji, bio FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
     );
     $stmt->execute([strtolower($identifier)]);
     $user = $stmt->fetch();
@@ -1033,7 +1043,8 @@ switch ($action) {
         "email" => $user["email"],
         "age" => (int) $user["age"],
         "gender" => $user["gender"],
-        "playMode" => $user["play_mode"],
+        "avatarEmoji" => $user["avatar_emoji"],
+        "bio" => $user["bio"],
         "isAdmin" => false,
       ],
       "csrf" => $_SESSION["csrf_token"],
@@ -1064,7 +1075,7 @@ switch ($action) {
     }
     $pdo = get_pdo();
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, age, gender, play_mode, is_admin FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, username, email, age, gender, avatar_emoji, bio, is_admin FROM users WHERE id = ? LIMIT 1",
     );
     $stmt->execute([$_SESSION["user_id"]]);
     $user = $stmt->fetch();
@@ -1081,7 +1092,8 @@ switch ($action) {
         "email" => $user["email"],
         "age" => $user["age"] !== null ? (int) $user["age"] : null,
         "gender" => $user["gender"],
-        "playMode" => $user["play_mode"],
+        "avatarEmoji" => $user["avatar_emoji"],
+        "bio" => $user["bio"],
         "isAdmin" => (bool) $user["is_admin"],
       ],
       "csrf" => $_SESSION["csrf_token"],
@@ -1333,8 +1345,11 @@ switch ($action) {
   // ════════════════════════════════════════════════════════════════════════
 
   case "get_challenges":
-    require_auth();
+    $auth = require_auth();
     $pdo = get_pdo();
+    if (!$auth["is_admin"] && !ctf_game_started($pdo)) {
+      json_response(["ok" => true, "challenges" => []]);
+    }
     $stmt = $pdo->query(
       'SELECT c.id, c.title, c.category, c.points, c.description,
                     c.difficulty_mode, c.difficulty, c.created_at
@@ -1343,6 +1358,18 @@ switch ($action) {
              ORDER BY cat.sort_order ASC, c.points ASC',
     );
     $challenges = $stmt->fetchAll();
+
+    // Valeur dégressive : nombre de résolutions par challenge, puis valeur que
+    // rapporterait la prochaine. `points` reste la valeur de départ, celle que
+    // l'admin édite.
+    $solvesStmt = $pdo->query(
+      "SELECT challenge_id, COUNT(*) AS solves FROM submissions GROUP BY challenge_id",
+    );
+    $solvesByChal = [];
+    foreach ($solvesStmt->fetchAll() as $row) {
+      $solvesByChal[$row["challenge_id"]] = (int) $row["solves"];
+    }
+
     // Retourner uniquement les métadonnées — pas de file_get_contents pour éviter le DoS
     // Le contenu est servi à la demande via l'endpoint download_file
     $filesStmt = $pdo->query("SELECT id, challenge_id, file_name FROM challenge_files");
@@ -1356,15 +1383,21 @@ switch ($action) {
     }
     foreach ($challenges as &$ch) {
       $ch["files"] = $filesByChal[$ch["id"]] ?? [];
+      $solves = $solvesByChal[$ch["id"]] ?? 0;
+      $ch["solves"] = $solves;
+      $ch["currentPoints"] = dynamic_points((int) $ch["points"], $solves + 1);
     }
     json_response(["ok" => true, "challenges" => $challenges]);
 
   // ── Téléchargement d'un fichier challenge ─────────────────────────────────
   case "download_file":
-    require_auth();
+    $auth = require_auth();
     $fileId = (int) ($_GET["id"] ?? 0);
     if (!$fileId) {
       json_error("Identifiant fichier manquant", 400);
+    }
+    if (!$auth["is_admin"] && !ctf_game_started(get_pdo())) {
+      json_error("Le CTF n'a pas encore commencé", 403);
     }
     $stmt = get_pdo()->prepare("SELECT file_name, file_path FROM challenge_files WHERE id = ?");
     $stmt->execute([$fileId]);
@@ -1542,12 +1575,6 @@ switch ($action) {
       }
     }
 
-    // ── Récupérer le play_mode et l'équipe de l'utilisateur ────────────
-    $userStmt = $pdo->prepare("SELECT play_mode FROM users WHERE id = ? LIMIT 1");
-    $userStmt->execute([$auth["id"]]);
-    $userData = $userStmt->fetch();
-    $playMode = $userData["play_mode"] ?? "solo";
-
     $challenge = $pdo->prepare("SELECT flag_encrypted, points, title FROM challenges WHERE id = ?");
     $challenge->execute([$challengeId]);
     $chal = $challenge->fetch();
@@ -1595,53 +1622,26 @@ switch ($action) {
         $eventId = (int) $activeEvent["id"];
       }
     }
-    $finalPoints = $chal["points"] * $eventBoost;
-
-    if ($playMode === "multiplayer") {
-      // ── Mode Multiplayer : flag au niveau équipe ────────────────────
-      $teamStmt = $pdo->prepare("SELECT team_id FROM team_members WHERE user_id = ? LIMIT 1");
-      $teamStmt->execute([$auth["id"]]);
-      $teamRow = $teamStmt->fetch();
-      if (!$teamRow) {
-        json_error("Vous devez appartenir à une équipe pour jouer en mode Multiplayer");
-      }
-
-      $teamId = $teamRow["team_id"];
-
-      // Vérifier si l'équipe a déjà résolu ce challenge
-      $tsCheck = $pdo->prepare(
-        "SELECT id FROM team_submissions WHERE team_id = ? AND challenge_id = ?",
-      );
-      $tsCheck->execute([$teamId, $challengeId]);
-      if ($tsCheck->fetch()) {
-        json_error("Challenge déjà résolu par votre équipe");
-      }
-
-      $pdo
-        ->prepare(
-          'INSERT INTO team_submissions (team_id, challenge_id, solved_by, solve_time_ms, submitted_at)
-                 VALUES (?, ?, ?, ?, NOW())',
-        )
-        ->execute([$teamId, $challengeId, $auth["id"], $solveTimeMs]);
-    } else {
-      // ── Mode Solo : flag individuel ─────────────────────────────────
-      $solvedCheck = $pdo->prepare(
-        "SELECT id FROM submissions WHERE user_id = ? AND challenge_id = ?",
-      );
-      $solvedCheck->execute([$auth["id"], $challengeId]);
-      if ($solvedCheck->fetch()) {
-        json_error("Challenge déjà résolu");
-      }
-
-      $pdo
-        ->prepare(
-          'INSERT INTO submissions (user_id, challenge_id, solve_time_ms, submitted_at)
-                 VALUES (?, ?, ?, NOW())',
-        )
-        ->execute([$auth["id"], $challengeId, $solveTimeMs]);
-
-      evaluate_achievements_for_user($pdo, $auth["id"]);
+    $solvedCheck = $pdo->prepare(
+      "SELECT id FROM submissions WHERE user_id = ? AND challenge_id = ?",
+    );
+    $solvedCheck->execute([$auth["id"], $challengeId]);
+    if ($solvedCheck->fetch()) {
+      json_error("Challenge déjà résolu");
     }
+
+    // Points figés à la résolution : les joueurs déjà passés gardent les leurs.
+    $finalPoints =
+      next_challenge_points($pdo, $challengeId, (int) $chal["points"]) * $eventBoost;
+
+    $pdo
+      ->prepare(
+        'INSERT INTO submissions (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
+               VALUES (?, ?, ?, ?, NOW())',
+      )
+      ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
+
+    evaluate_achievements_for_user($pdo, $auth["id"]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [
       "challenge" => $chal["title"] ?? "",
@@ -1665,39 +1665,16 @@ switch ($action) {
     $limit = min(max(1, (int) ($_GET["limit"] ?? 500)), 1000);
     $offset = max(0, (int) ($_GET["offset"] ?? 0));
 
-    // Déterminer le play_mode de l'utilisateur cible
-    $pmStmt = $pdo->prepare("SELECT play_mode FROM users WHERE id = ? LIMIT 1");
-    $pmStmt->execute([$userId]);
-    $pmRow = $pmStmt->fetch();
-    $playMode = $pmRow["play_mode"] ?? "solo";
-
-    if ($playMode === "multiplayer") {
-      // Retourner les flags de l'équipe (tous les membres en bénéficient)
-      $stmt = $pdo->prepare(
-        'SELECT ts.id, ? AS user_id, u_solver.username, ts.challenge_id,
-                        c.title AS challenge_title, c.category, c.points,
-                        ts.submitted_at, ts.solve_time_ms
-                 FROM team_members tm
-                 JOIN team_submissions ts ON ts.team_id = tm.team_id
-                 JOIN challenges c ON c.id = ts.challenge_id
-                 JOIN users u_solver ON u_solver.id = ts.solved_by
-                 WHERE tm.user_id = ?
-                 ORDER BY ts.submitted_at DESC
-                 LIMIT ? OFFSET ?',
-      );
-      $stmt->execute([$userId, $userId, $limit, $offset]);
-    } else {
-      $stmt = $pdo->prepare(
-        'SELECT s.id, s.user_id, u.username, s.challenge_id, c.title AS challenge_title,
-                        c.category, c.points, s.submitted_at, s.solve_time_ms
-                 FROM submissions s
-                 JOIN users      u ON u.id = s.user_id
-                 JOIN challenges c ON c.id = s.challenge_id
-                 WHERE s.user_id = ? ORDER BY s.submitted_at DESC
-                 LIMIT ? OFFSET ?',
-      );
-      $stmt->execute([$userId, $limit, $offset]);
-    }
+    $stmt = $pdo->prepare(
+      'SELECT s.id, s.user_id, u.username, s.challenge_id, c.title AS challenge_title,
+                      c.category, s.points_awarded AS points, s.submitted_at, s.solve_time_ms
+               FROM submissions s
+               JOIN users      u ON u.id = s.user_id
+               JOIN challenges c ON c.id = s.challenge_id
+               WHERE s.user_id = ? ORDER BY s.submitted_at DESC
+               LIMIT ? OFFSET ?',
+    );
+    $stmt->execute([$userId, $limit, $offset]);
     json_response(["ok" => true, "flags" => $stmt->fetchAll()]);
 
   case "get_all_flags":
@@ -1707,7 +1684,7 @@ switch ($action) {
     $offset = max(0, (int) ($_GET["offset"] ?? 0));
     $stmt = $pdo->prepare(
       'SELECT s.id, s.user_id, u.username, s.challenge_id, c.title AS challenge_title,
-                    c.category, c.points, s.submitted_at, s.solve_time_ms
+                    c.category, s.points_awarded AS points, s.submitted_at, s.solve_time_ms
              FROM submissions s
              JOIN users      u ON u.id = s.user_id
              JOIN challenges c ON c.id = s.challenge_id
@@ -1737,44 +1714,6 @@ switch ($action) {
       $ranking,
     );
     json_response(["ok" => true, "ranking" => $normalized]);
-
-  case "get_team_ranking":
-    require_auth();
-    $pdo = get_pdo();
-    $teams = $pdo
-      ->query(
-        'SELECT t.id, t.name, t.description, t.emoji, t.is_public, t.owner_id, t.created_at,
-                    COUNT(DISTINCT ts.challenge_id) AS flags_found,
-                    COALESCE(SUM(c.points), 0) AS total_points,
-                    COUNT(DISTINCT tm.user_id) AS member_count
-             FROM teams t
-             LEFT JOIN team_submissions ts ON ts.team_id = t.id
-             LEFT JOIN challenges c ON c.id = ts.challenge_id
-             LEFT JOIN team_members tm ON tm.team_id = t.id
-             GROUP BY t.id, t.name, t.description, t.emoji, t.is_public, t.owner_id, t.created_at
-             ORDER BY total_points DESC, flags_found DESC',
-      )
-      ->fetchAll();
-
-    $result = array_map(
-      fn($row) => [
-        "team" => [
-          "id" => $row["id"],
-          "name" => $row["name"],
-          "description" => $row["description"],
-          "emoji" => $row["emoji"],
-          "isPublic" => (bool) $row["is_public"],
-          "ownerId" => $row["owner_id"],
-          "createdAt" => $row["created_at"],
-        ],
-        "points" => (int) $row["total_points"],
-        "solved" => (int) $row["flags_found"],
-        "memberCount" => (int) $row["member_count"],
-      ],
-      $teams,
-    );
-
-    json_response(["ok" => true, "ranking" => $result]);
 
   // ════════════════════════════════════════════════════════════════════════
   // ACHIEVEMENTS
@@ -1936,55 +1875,21 @@ switch ($action) {
     require_admin();
     $stmt = get_pdo()->query(
       'SELECT u.id, u.username, u.email, u.age, u.gender, u.is_admin, u.created_at,
-                    COALESCE(SUM(c.points), 0) + COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0) AS points,
+                    COALESCE(SUM(s.points_awarded), 0) AS points,
                     COUNT(s.id) AS solved
              FROM users u
              LEFT JOIN submissions s ON s.user_id = u.id
-             LEFT JOIN challenges  c ON c.id      = s.challenge_id
              WHERE u.is_admin = 0
              GROUP BY u.id
              ORDER BY points DESC',
     );
     json_response(["ok" => true, "players" => $stmt->fetchAll()]);
 
-  case "add_bonus":
-    $auth = require_admin();
-    $body = get_body();
-    $userId = (int) $body["userId"];
-    get_pdo()
-      ->prepare(
-        "INSERT INTO bonus_malus (user_id, points, reason, created_at) VALUES (?, ?, ?, NOW())",
-      )
-      ->execute([$userId, abs((int) $body["points"]), "Bonus admin"]);
-    log_activity("bonus_added", (int) $auth["id"], $auth["username"], [
-      "targetId" => $userId,
-      "points" => 25,
-    ]);
-    notify_ws("players");
-    json_response(["ok" => true]);
-
-  case "add_malus":
-    $auth = require_admin();
-    $body = get_body();
-    $userId = (int) $body["userId"];
-    get_pdo()
-      ->prepare(
-        "INSERT INTO bonus_malus (user_id, points, reason, created_at) VALUES (?, ?, ?, NOW())",
-      )
-      ->execute([$userId, -abs((int) $body["points"]), "Malus admin"]);
-    log_activity("malus_added", (int) $auth["id"], $auth["username"], [
-      "targetId" => $userId,
-      "points" => 25,
-    ]);
-    notify_ws("players");
-    json_response(["ok" => true]);
-
   case "reset_user_progress":
     require_admin();
     $userId = (int) (get_body()["userId"] ?? 0);
     $pdo = get_pdo();
     $pdo->prepare("DELETE FROM submissions WHERE user_id = ?")->execute([$userId]);
-    $pdo->prepare("DELETE FROM bonus_malus WHERE user_id = ?")->execute([$userId]);
     $pdo->prepare("DELETE FROM user_achievements WHERE user_id = ?")->execute([$userId]);
     notify_ws("players");
     json_response(["ok" => true]);
@@ -2011,16 +1916,18 @@ switch ($action) {
     $solved = (bool) $body["solved"];
     $pdo = get_pdo();
     if ($solved) {
-      $stmt = $pdo->prepare("SELECT id FROM challenges WHERE id = ?");
+      $stmt = $pdo->prepare("SELECT id, points FROM challenges WHERE id = ?");
       $stmt->execute([$challengeId]);
-      if (!$stmt->fetch()) {
+      $chal = $stmt->fetch();
+      if (!$chal) {
         json_error("Challenge introuvable");
       }
+      $awarded = next_challenge_points($pdo, $challengeId, (int) $chal["points"]);
       $pdo
         ->prepare(
-          "INSERT IGNORE INTO submissions (user_id, challenge_id, submitted_at) VALUES (?, ?, NOW())",
+          "INSERT IGNORE INTO submissions (user_id, challenge_id, points_awarded, submitted_at) VALUES (?, ?, ?, NOW())",
         )
-        ->execute([$userId, $challengeId]);
+        ->execute([$userId, $challengeId, $awarded]);
     } else {
       $pdo
         ->prepare("DELETE FROM submissions WHERE user_id = ? AND challenge_id = ?")
@@ -2138,428 +2045,6 @@ switch ($action) {
     $stmt->execute(["%" . $query . "%", $auth["id"]]);
     json_response(["ok" => true, "users" => $stmt->fetchAll()]);
 
-  // ════════════════════════════════════════════════════════════════════════
-  // TEAMS
-  // ════════════════════════════════════════════════════════════════════════
-
-  case "create_team":
-    $auth = require_auth();
-    if ($auth["is_admin"]) {
-      json_error("Les admins ne peuvent pas créer de team");
-    }
-    $body = get_body();
-    $pdo = get_pdo();
-    $stmt = $pdo->prepare("SELECT id FROM team_members WHERE user_id = ?");
-    $stmt->execute([$auth["id"]]);
-    if ($stmt->fetch()) {
-      json_error("Vous êtes déjà dans une team");
-    }
-    $name = sanitize_string($body["name"] ?? "", 40);
-    $desc = sanitize_string($body["description"] ?? "", 200);
-    $emoji = sanitize_string($body["emoji"] ?? "🛡️", 10);
-    $isPublic = (bool) ($body["isPublic"] ?? true);
-    if (strlen($name) < 2) {
-      json_error("Nom trop court");
-    }
-    $check = $pdo->prepare("SELECT id FROM teams WHERE name = ?");
-    $check->execute([$name]);
-    if ($check->fetch()) {
-      json_error("Ce nom de team est déjà utilisé");
-    }
-    $teamId = bin2hex(random_bytes(16));
-    $pdo
-      ->prepare(
-        "INSERT INTO teams (id, name, description, emoji, is_public, owner_id, created_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
-      )
-      ->execute([$teamId, $name, $desc, $emoji, $isPublic ? 1 : 0, $auth["id"]]);
-    $pdo
-      ->prepare(
-        'INSERT INTO team_members (id, team_id, user_id, role, joined_at) VALUES (UUID(), ?, ?, "owner", NOW())',
-      )
-      ->execute([$teamId, $auth["id"]]);
-    log_activity("team_created", (int) $auth["id"], $auth["username"], [
-      "teamId" => $teamId,
-      "name" => $name,
-    ]);
-    notify_ws("teams");
-    json_response(["ok" => true, "teamId" => $teamId]);
-
-  case "get_teams":
-    require_auth();
-    $query = sanitize_string($_GET["q"] ?? "", 50);
-    $filter = $_GET["filter"] ?? "all";
-    $sql =
-      "SELECT id, name, description, emoji, is_public, owner_id, created_at FROM teams WHERE 1=1";
-    $params = [];
-    if ($query !== "") {
-      $sql .= " AND name LIKE ?";
-      $params[] = "%" . $query . "%";
-    }
-    if ($filter === "public") {
-      $sql .= " AND is_public = 1";
-    }
-    if ($filter === "private") {
-      $sql .= " AND is_public = 0";
-    }
-    $limit = min(max(1, (int) ($_GET["limit"] ?? 50)), 200);
-    $offset = max(0, (int) ($_GET["offset"] ?? 0));
-    $sql .= " ORDER BY name LIMIT ? OFFSET ?";
-    $params[] = $limit;
-    $params[] = $offset;
-    $stmt = get_pdo()->prepare($sql);
-    $stmt->execute($params);
-    $teams = array_map(
-      fn($t) => [
-        "id" => $t["id"],
-        "name" => $t["name"],
-        "description" => $t["description"],
-        "emoji" => $t["emoji"],
-        "isPublic" => (bool) $t["is_public"],
-        "ownerId" => $t["owner_id"],
-        "createdAt" => $t["created_at"],
-      ],
-      $stmt->fetchAll(),
-    );
-    json_response(["ok" => true, "teams" => $teams]);
-
-  case "get_user_team":
-    $auth = require_auth();
-    // Seul l'admin peut interroger un userId arbitraire
-    $userId = $auth["is_admin"] && isset($_GET["userId"]) ? (int) $_GET["userId"] : $auth["id"];
-    $stmt = get_pdo()->prepare(
-      "SELECT t.id, t.name, t.description, t.emoji, t.is_public, t.owner_id, t.created_at, tm.role FROM teams t JOIN team_members tm ON tm.team_id = t.id WHERE tm.user_id = ?",
-    );
-    $stmt->execute([$userId]);
-    $row = $stmt->fetch();
-    if (!$row) {
-      json_response(["ok" => true, "team" => null, "role" => null]);
-    }
-    json_response([
-      "ok" => true,
-      "team" => [
-        "id" => $row["id"],
-        "name" => $row["name"],
-        "description" => $row["description"],
-        "emoji" => $row["emoji"],
-        "isPublic" => (bool) $row["is_public"],
-        "ownerId" => $row["owner_id"],
-        "createdAt" => $row["created_at"],
-      ],
-      "role" => $row["role"],
-    ]);
-
-  case "get_team_members":
-    $auth = require_auth();
-    $teamId = sanitize_string($_GET["teamId"] ?? "", 36);
-    if (!$teamId) {
-      json_error("teamId manquant");
-    }
-
-    $pdo = get_pdo();
-    // Vérifier que la team est publique OU que l'appelant en est membre (OU admin)
-    $teamStmt = $pdo->prepare("SELECT is_public FROM teams WHERE id = ?");
-    $teamStmt->execute([$teamId]);
-    $team = $teamStmt->fetch();
-    if (!$team) {
-      json_error("Team introuvable", 404);
-    }
-    if (!$team["is_public"] && !$auth["is_admin"]) {
-      $memberStmt = $pdo->prepare("SELECT id FROM team_members WHERE team_id=? AND user_id=?");
-      $memberStmt->execute([$teamId, $auth["id"]]);
-      if (!$memberStmt->fetch()) {
-        json_error("Accès refusé", 403);
-      }
-    }
-
-    $stmt = $pdo->prepare(
-      'SELECT u.id, u.username, tm.role, tm.joined_at,
-                    COALESCE(SUM(c.points), 0) + COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0) AS points,
-                    COUNT(DISTINCT s.challenge_id) AS solved
-             FROM team_members tm
-             JOIN users u ON u.id = tm.user_id
-             LEFT JOIN submissions s ON s.user_id = u.id
-             LEFT JOIN challenges  c ON c.id      = s.challenge_id
-             WHERE tm.team_id = ?
-             GROUP BY u.id, u.username, tm.role, tm.joined_at
-             ORDER BY FIELD(tm.role, "owner", "admin", "member"), points DESC',
-    );
-    $stmt->execute([$teamId]);
-    json_response(["ok" => true, "members" => $stmt->fetchAll()]);
-
-  case "join_team":
-    $auth = require_auth();
-    if ($auth["is_admin"]) {
-      json_error("Les admins ne peuvent pas rejoindre de team");
-    }
-    $teamId = sanitize_string(get_body()["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $stmt = $pdo->prepare("SELECT id FROM team_members WHERE user_id = ?");
-    $stmt->execute([$auth["id"]]);
-    if ($stmt->fetch()) {
-      json_error("Vous êtes déjà dans une team");
-    }
-    $stmt = $pdo->prepare("SELECT is_public FROM teams WHERE id = ?");
-    $stmt->execute([$teamId]);
-    $team = $stmt->fetch();
-    if (!$team || !$team["is_public"]) {
-      json_error("Team introuvable ou privée");
-    }
-    $stmt = $pdo->prepare("SELECT id FROM team_bans WHERE team_id=? AND user_id=?");
-    $stmt->execute([$teamId, $auth["id"]]);
-    if ($stmt->fetch()) {
-      json_error("Vous êtes banni de cette team");
-    }
-    $pdo
-      ->prepare(
-        'INSERT INTO team_members (id, team_id, user_id, role, joined_at) VALUES (UUID(), ?, ?, "member", NOW())',
-      )
-      ->execute([$teamId, $auth["id"]]);
-    log_activity("team_join", (int) $auth["id"], $auth["username"], ["teamId" => $teamId]);
-    notify_ws("teams");
-    json_response(["ok" => true]);
-
-  case "leave_team":
-    $auth = require_auth();
-    $pdo = get_pdo();
-    $stmt = $pdo->prepare("SELECT role, team_id FROM team_members WHERE user_id = ?");
-    $stmt->execute([$auth["id"]]);
-    $member = $stmt->fetch();
-    if (!$member) {
-      json_error('Vous n\'êtes dans aucune team');
-    }
-    if ($member["role"] === "owner") {
-      json_error("Le propriétaire ne peut pas quitter la team");
-    }
-    $leaveTeamId = $member["team_id"];
-    $pdo->prepare("DELETE FROM team_members WHERE user_id = ?")->execute([$auth["id"]]);
-    notify_ws("teams");
-    notify_team_members($leaveTeamId, $auth["id"]);
-    json_response(["ok" => true]);
-
-  case "kick_member":
-    $auth = require_auth();
-    $body = get_body();
-    $target = (int) $body["targetId"];
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $aStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $aStmt->execute([$auth["id"], $teamId]);
-    $actor = $aStmt->fetch();
-    $tStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $tStmt->execute([$target, $teamId]);
-    $tgt = $tStmt->fetch();
-    if (!$actor || !$tgt) {
-      json_error("Membre introuvable");
-    }
-    if ($tgt["role"] === "owner") {
-      json_error('Impossible d\'expulser le propriétaire');
-    }
-    if ($actor["role"] === "admin" && $tgt["role"] !== "member") {
-      json_error("Permission insuffisante");
-    }
-    if (!in_array($actor["role"], ["owner", "admin"])) {
-      json_error("Permission insuffisante");
-    }
-    $pdo
-      ->prepare("DELETE FROM team_members WHERE user_id=? AND team_id=?")
-      ->execute([$target, $teamId]);
-    json_response(["ok" => true]);
-
-  case "ban_member":
-    $auth = require_auth();
-    $body = get_body();
-    $target = (int) $body["targetId"];
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $aStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $aStmt->execute([$auth["id"], $teamId]);
-    $actor = $aStmt->fetch();
-    $tStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $tStmt->execute([$target, $teamId]);
-    $tgt = $tStmt->fetch();
-    if (!$actor || !$tgt) {
-      json_error("Membre introuvable");
-    }
-    if ($tgt["role"] === "owner") {
-      json_error("Impossible de bannir le propriétaire");
-    }
-    if ($actor["role"] === "admin" && $tgt["role"] !== "member") {
-      json_error("Permission insuffisante");
-    }
-    if (!in_array($actor["role"], ["owner", "admin"])) {
-      json_error("Permission insuffisante");
-    }
-    $pdo
-      ->prepare("DELETE FROM team_members WHERE user_id=? AND team_id=?")
-      ->execute([$target, $teamId]);
-    $pdo
-      ->prepare("INSERT IGNORE INTO team_bans (team_id, user_id) VALUES (?, ?)")
-      ->execute([$teamId, $target]);
-    json_response(["ok" => true]);
-  case "promote_member":
-    $auth = require_auth();
-    $body = get_body();
-    $target = (int) $body["targetId"];
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $aStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $aStmt->execute([$auth["id"], $teamId]);
-    $actor = $aStmt->fetch();
-    if (!$actor || $actor["role"] !== "owner") {
-      json_error("Seul le propriétaire peut promouvoir");
-    }
-    $tStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $tStmt->execute([$target, $teamId]);
-    $tgt = $tStmt->fetch();
-    if (!$tgt || $tgt["role"] !== "member") {
-      json_error("Cible invalide ou déjà admin/owner");
-    }
-    $pdo
-      ->prepare("UPDATE team_members SET role=? WHERE user_id=? AND team_id=?")
-      ->execute(["admin", $target, $teamId]);
-    notify_ws("teams");
-    notify_ws("notification", $target);
-    json_response(["ok" => true]);
-
-  case "demote_member":
-    $auth = require_auth();
-    $body = get_body();
-    $target = (int) $body["targetId"];
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $aStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $aStmt->execute([$auth["id"], $teamId]);
-    $actor = $aStmt->fetch();
-    if (!$actor || $actor["role"] !== "owner") {
-      json_error("Seul le propriétaire peut rétrograder");
-    }
-    $tStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $tStmt->execute([$target, $teamId]);
-    $tgt = $tStmt->fetch();
-    if (!$tgt || $tgt["role"] !== "admin") {
-      json_error("Cible invalide ou pas admin");
-    }
-    $pdo
-      ->prepare("UPDATE team_members SET role=? WHERE user_id=? AND team_id=?")
-      ->execute(["member", $target, $teamId]);
-    log_activity("team_demote", (int) $auth["id"], $auth["username"], ["targetId" => $target]);
-    notify_ws("teams");
-    notify_ws("notification", $target);
-    json_response(["ok" => true]);
-
-  case "update_team":
-    $auth = require_auth();
-    $body = get_body();
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $aStmt = $pdo->prepare("SELECT role FROM team_members WHERE user_id=? AND team_id=?");
-    $aStmt->execute([$auth["id"], $teamId]);
-    $actor = $aStmt->fetch();
-    if (!$actor || $actor["role"] !== "owner") {
-      json_error("Seul le propriétaire peut modifier la team");
-    }
-    $name = sanitize_string($body["name"] ?? "", 50);
-    $desc = sanitize_string($body["description"] ?? "", 300);
-    $emoji = sanitize_string($body["emoji"] ?? "🛡️", 10);
-    $public = isset($body["isPublic"]) ? (bool) $body["isPublic"] : null;
-    $sets = [];
-    $vals = [];
-    if ($name !== "") {
-      $sets[] = "name = ?";
-      $vals[] = $name;
-    }
-    if ($desc !== "") {
-      $sets[] = "description = ?";
-      $vals[] = $desc;
-    }
-    if ($emoji !== "") {
-      $sets[] = "emoji = ?";
-      $vals[] = $emoji;
-    }
-    if ($public !== null) {
-      $sets[] = "is_public = ?";
-      $vals[] = (int) $public;
-    }
-    if (empty($sets)) {
-      json_error("Aucun champ à mettre à jour");
-    }
-    $vals[] = $teamId;
-    $pdo->prepare("UPDATE teams SET " . implode(", ", $sets) . " WHERE id = ?")->execute($vals);
-    json_response(["ok" => true]);
-
-  case "delete_team":
-    $auth = require_auth();
-    $body = get_body();
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $pdo = get_pdo();
-    $oStmt = $pdo->prepare("SELECT owner_id FROM teams WHERE id = ?");
-    $oStmt->execute([$teamId]);
-    $team = $oStmt->fetch();
-    if (!$team) {
-      json_error("Team introuvable");
-    }
-    if ((int) $team["owner_id"] !== $auth["id"] && !$auth["is_admin"]) {
-      json_error("Non autorisé", 403);
-    }
-    $pdo->prepare("DELETE FROM teams WHERE id = ?")->execute([$teamId]);
-    json_response(["ok" => true]);
-
-  case "search_teams":
-    require_auth();
-    $query = sanitize_string($_GET["q"] ?? "", 50);
-    $filterPublic = ($_GET["filterPublic"] ?? "") === "true";
-    $pdo = get_pdo();
-    $limit = min(max(1, (int) ($_GET["limit"] ?? 20)), 50);
-    $offset = max(0, (int) ($_GET["offset"] ?? 0));
-    if ($filterPublic) {
-      $stmt = $pdo->prepare(
-        'SELECT id, name, description, emoji, is_public, owner_id, created_at
-                 FROM teams WHERE is_public = 1 AND name LIKE ? LIMIT ? OFFSET ?',
-      );
-      $stmt->execute(["%" . $query . "%", $limit, $offset]);
-    } else {
-      $stmt = $pdo->prepare(
-        'SELECT id, name, description, emoji, is_public, owner_id, created_at
-                 FROM teams WHERE name LIKE ? LIMIT ? OFFSET ?',
-      );
-      $stmt->execute(["%" . $query . "%", $limit, $offset]);
-    }
-    $teams = array_map(
-      fn($t) => [
-        "id" => $t["id"],
-        "name" => $t["name"],
-        "description" => $t["description"],
-        "emoji" => $t["emoji"],
-        "isPublic" => (bool) $t["is_public"],
-        "ownerId" => $t["owner_id"],
-        "createdAt" => $t["created_at"],
-      ],
-      $stmt->fetchAll(),
-    );
-    json_response(["ok" => true, "teams" => $teams]);
-
-  case "add_team_member_admin":
-    require_admin();
-    $body = get_body();
-    $teamId = sanitize_string($body["teamId"] ?? "", 36);
-    $userId = (int) ($body["userId"] ?? 0);
-    if (!$teamId || !$userId) {
-      json_error("Données manquantes");
-    }
-    $pdo = get_pdo();
-    // Vérifie que l'utilisateur n'est pas déjà dans une team
-    $inTeam = $pdo->prepare("SELECT team_id FROM team_members WHERE user_id = ?");
-    $inTeam->execute([$userId]);
-    if ($inTeam->fetch()) {
-      json_error('L\'utilisateur est déjà dans une team');
-    }
-    $pdo
-      ->prepare(
-        'INSERT IGNORE INTO team_members (team_id, user_id, role) VALUES (?, ?, \'member\')',
-      )
-      ->execute([$teamId, $userId]);
-    json_response(["ok" => true]);
-
   case "export_data":
     require_admin();
     $pdo = get_pdo();
@@ -2619,7 +2104,7 @@ switch ($action) {
     // Joueurs (non-admins) — hash bcrypt inclus pour permettre la restauration
     // complète des comptes sur une autre instance. Export admin uniquement.
     $playerStmt = $pdo->query(
-      'SELECT username, email, password_hash, age, gender, play_mode
+      'SELECT username, email, password_hash, age, gender
              FROM users WHERE is_admin = 0 ORDER BY created_at ASC',
     );
     $players = array_map(
@@ -2629,7 +2114,6 @@ switch ($action) {
         "passwordHash" => $u["password_hash"],
         "age" => $u["age"] !== null ? (int) $u["age"] : null,
         "gender" => $u["gender"],
-        "playMode" => $u["play_mode"],
       ],
       $playerStmt->fetchAll(),
     );
@@ -2761,8 +2245,8 @@ switch ($action) {
       if (!empty($body["players"]) && is_array($body["players"])) {
         $stmtPlayer = $pdo->prepare(
           'INSERT IGNORE INTO users
-                        (username, email, password_hash, age, gender, play_mode, is_admin, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, 0, NOW())',
+                        (username, email, password_hash, age, gender, is_admin, created_at)
+                     VALUES (?, ?, ?, ?, ?, 0, NOW())',
         );
         foreach ($body["players"] as $player) {
           if (empty($player["username"]) || empty($player["passwordHash"])) {
@@ -2779,9 +2263,6 @@ switch ($action) {
           $gender = in_array($player["gender"] ?? "", ["male", "female", "other"], true)
             ? $player["gender"]
             : null;
-          $playMode = in_array($player["playMode"] ?? "", ["solo", "multiplayer"], true)
-            ? $player["playMode"]
-            : "solo";
           $hash = (string) $player["passwordHash"];
           // Valider le format bcrypt avant insertion (évite l'injection d'un hash arbitraire)
           if (!preg_match('/^\$2[ayb]\$[0-9]{2}\$[A-Za-z0-9.\/]{53}$/', $hash)) {
@@ -2793,7 +2274,6 @@ switch ($action) {
             $hash, // hash bcrypt validé
             $age,
             $gender,
-            $playMode,
           ]);
           if ($pdo->lastInsertId()) {
             $imported["players"]++;
@@ -2913,7 +2393,7 @@ switch ($action) {
     }
     if (
       $key === "podium_revealed" &&
-      (!ctype_digit($value) || (int) $value < 0 || (int) $value > 5)
+      (!ctype_digit($value) || (int) $value < 0 || (int) $value > 4)
     ) {
       json_error("Valeur invalide");
     }
@@ -2933,29 +2413,6 @@ switch ($action) {
     notify_ws("ctf_state");
     json_response(["ok" => true]);
 
-  case "update_play_mode":
-    $auth = require_auth();
-    if ($auth["is_admin"]) {
-      json_error('Les admins n\'ont pas de mode de jeu');
-    }
-    $body = get_body();
-    $playMode = sanitize_string($body["playMode"] ?? "");
-    if (!in_array($playMode, ["solo", "multiplayer"], true)) {
-      json_error("Mode invalide");
-    }
-
-    $pdo = get_pdo();
-    // Vérifier que le jeu n'a pas commencé
-    $stateStmt = $pdo->prepare("SELECT state_value FROM ctf_state WHERE state_key = ?");
-    $stateStmt->execute(["game_started"]);
-    $started = ($stateStmt->fetchColumn() ?? "0") === "1";
-    if ($started) {
-      json_error("Impossible de changer de mode une fois le jeu commencé");
-    }
-
-    $pdo->prepare("UPDATE users SET play_mode = ? WHERE id = ?")->execute([$playMode, $auth["id"]]);
-    json_response(["ok" => true, "playMode" => $playMode]);
-
   case "get_podium":
     require_auth();
     $pdo = get_pdo();
@@ -2965,17 +2422,9 @@ switch ($action) {
       ->query("SELECT user_id, username, flags_found, total_points FROM v_solo_ranking LIMIT 3")
       ->fetchAll();
 
-    // 2. 1ère team multiplayer
-    $teamTop = $pdo
-      ->query(
-        'SELECT team_id, team_name, emoji, flags_found, total_points, member_count
-             FROM v_team_ranking LIMIT 1',
-      )
-      ->fetchAll();
-
-    // 3. Joueur avec le plus de flags (tous modes)
+    // 2. Joueur avec le plus de flags
     $mostFlags = $pdo
-      ->query("SELECT user_id, username, play_mode, flags_found FROM v_most_flags LIMIT 1")
+      ->query("SELECT user_id, username, flags_found FROM v_most_flags LIMIT 1")
       ->fetch();
 
     json_response([
@@ -2989,21 +2438,10 @@ switch ($action) {
         ],
         $soloTop,
       ),
-      "teamFirst" => $teamTop
-        ? [
-          "teamId" => $teamTop[0]["team_id"],
-          "teamName" => $teamTop[0]["team_name"],
-          "emoji" => $teamTop[0]["emoji"],
-          "flagsFound" => (int) $teamTop[0]["flags_found"],
-          "totalPoints" => (int) $teamTop[0]["total_points"],
-          "memberCount" => (int) $teamTop[0]["member_count"],
-        ]
-        : null,
       "mostFlags" => $mostFlags
         ? [
           "userId" => (int) $mostFlags["user_id"],
           "username" => $mostFlags["username"],
-          "playMode" => $mostFlags["play_mode"],
           "flagsFound" => (int) $mostFlags["flags_found"],
         ]
         : null,
@@ -3018,7 +2456,7 @@ switch ($action) {
     $pdo = get_pdo();
 
     $user = $pdo->prepare(
-      "SELECT id, username, avatar_emoji, bio, play_mode, created_at FROM users WHERE username = ? AND is_admin = 0",
+      "SELECT id, username, avatar_emoji, bio, created_at FROM users WHERE username = ? AND is_admin = 0",
     );
     $user->execute([$username]);
     $u = $user->fetch();
@@ -3031,12 +2469,11 @@ switch ($action) {
     // Points + flags (solo)
     $statsStmt = $pdo->prepare('
             SELECT COUNT(s.id) AS solved,
-                   COALESCE(SUM(c.points), 0) + COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = :uid2), 0) AS points
+                   COALESCE(SUM(s.points_awarded), 0) AS points
             FROM submissions s
-            JOIN challenges c ON c.id = s.challenge_id
             WHERE s.user_id = :uid
         ');
-    $statsStmt->execute([":uid" => $uid, ":uid2" => $uid]);
+    $statsStmt->execute([":uid" => $uid]);
     $stats = $statsStmt->fetch();
 
     // Rang solo
@@ -3054,7 +2491,7 @@ switch ($action) {
 
     // 5 derniers flags
     $flagsStmt = $pdo->prepare('
-            SELECT c.id, c.title, c.category, c.points, s.submitted_at
+            SELECT c.id, c.title, c.category, s.points_awarded AS points, s.submitted_at
             FROM submissions s
             JOIN challenges c ON c.id = s.challenge_id
             WHERE s.user_id = ?
@@ -3113,7 +2550,6 @@ switch ($action) {
         "username" => $u["username"],
         "avatarEmoji" => $u["avatar_emoji"],
         "bio" => $u["bio"],
-        "playMode" => $u["play_mode"],
         "createdAt" => $u["created_at"],
         "points" => (int) ($stats["points"] ?? 0),
         "solved" => (int) ($stats["solved"] ?? 0),
@@ -3304,48 +2740,22 @@ switch ($action) {
       json_response(["ok" => true, "correct" => false]);
     }
 
-    $finalPoints = $chal["points"] * $multiplier;
-    $userStmt = $pdo->prepare("SELECT play_mode FROM users WHERE id = ? LIMIT 1");
-    $userStmt->execute([$auth["id"]]);
-    $playMode = $userStmt->fetch()["play_mode"] ?? "solo";
-
-    if ($playMode === "multiplayer") {
-      $teamStmt = $pdo->prepare("SELECT team_id FROM team_members WHERE user_id = ? LIMIT 1");
-      $teamStmt->execute([$auth["id"]]);
-      $teamRow = $teamStmt->fetch();
-      if (!$teamRow) {
-        json_error("Vous devez appartenir à une équipe pour jouer en mode Multiplayer");
-      }
-      $teamId = $teamRow["team_id"];
-      $tsCheck = $pdo->prepare(
-        "SELECT id FROM team_submissions WHERE team_id = ? AND challenge_id = ?",
-      );
-      $tsCheck->execute([$teamId, $challengeId]);
-      if ($tsCheck->fetch()) {
-        json_error("Challenge déjà résolu par votre équipe");
-      }
-      $pdo
-        ->prepare(
-          'INSERT INTO team_submissions (team_id, challenge_id, solved_by, solve_time_ms, submitted_at)
-                 VALUES (?, ?, ?, ?, NOW())',
-        )
-        ->execute([$teamId, $challengeId, $auth["id"], $solveTimeMs]);
-    } else {
-      $solvedCheck = $pdo->prepare(
-        "SELECT id FROM submissions WHERE user_id = ? AND challenge_id = ?",
-      );
-      $solvedCheck->execute([$auth["id"], $challengeId]);
-      if ($solvedCheck->fetch()) {
-        json_error("Challenge déjà résolu");
-      }
-      $pdo
-        ->prepare(
-          'INSERT INTO submissions (user_id, challenge_id, solve_time_ms, submitted_at)
-                 VALUES (?, ?, ?, NOW())',
-        )
-        ->execute([$auth["id"], $challengeId, $solveTimeMs]);
-      evaluate_achievements_for_user($pdo, $auth["id"]);
+    $solvedCheck = $pdo->prepare(
+      "SELECT id FROM submissions WHERE user_id = ? AND challenge_id = ?",
+    );
+    $solvedCheck->execute([$auth["id"], $challengeId]);
+    if ($solvedCheck->fetch()) {
+      json_error("Challenge déjà résolu");
     }
+    $finalPoints =
+      next_challenge_points($pdo, $challengeId, (int) $chal["points"]) * $multiplier;
+    $pdo
+      ->prepare(
+        'INSERT INTO submissions (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
+               VALUES (?, ?, ?, ?, NOW())',
+      )
+      ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
+    evaluate_achievements_for_user($pdo, $auth["id"]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [
       "challenge" => $chal["title"],

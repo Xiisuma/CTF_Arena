@@ -39,6 +39,8 @@ export const ChallengeSchema = z.object({
   title: str,
   category: str,
   points: num,
+  currentPoints: num,
+  solves: num,
   description: str,
   files: z.array(ChallengeFileSchema),
   // flag_encrypted n'est jamais renvoyé par l'API — pas de champ flag ici.
@@ -89,25 +91,6 @@ export const FriendRequestSchema = z.object({
   createdAt: str,
 });
 
-export const TeamSchema = z.object({
-  id: str,
-  name: str,
-  description: str,
-  emoji: str,
-  isPublic: bool,
-  ownerId: str,
-  createdAt: str,
-});
-
-export const TeamMemberWithStatsSchema = z.object({
-  id: str,
-  username: str,
-  role: z.enum(["owner", "admin", "member"]),
-  points: num,
-  solved: num,
-  joinedAt: str,
-});
-
 export const PlayerWithPointsSchema = z.object({
   id: str,
   username: str,
@@ -125,12 +108,6 @@ export const RankingRowSchema = z.object({
 export const UserSearchResultSchema = z.object({
   id: str,
   username: str,
-});
-
-export const TeamRankingRowSchema = z.object({
-  points: num,
-  solved: num,
-  memberCount: num,
 });
 
 // ─── Validation helper ────────────────────────────────────────────────────────

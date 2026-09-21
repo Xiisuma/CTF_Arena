@@ -36,12 +36,6 @@ const BOX_CONFIG: Record<NotifBox, { label: string; icon: string; description: s
     description: "Activités et demandes de vos amis",
     color: "border-violet-500/30 bg-violet-500/5",
   },
-  team: {
-    label: "Boîte Team",
-    icon: "🛡️",
-    description: "Activités de votre équipe",
-    color: "border-emerald-500/30 bg-emerald-500/5",
-  },
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -146,7 +140,6 @@ export default function NotificationsPage() {
   const unreadByBox: Record<NotifBox, number> = {
     perso: notifications.filter((n) => !n.read && NOTIF_BOX_MAP[n.type] === "perso").length,
     amis:  notifications.filter((n) => !n.read && NOTIF_BOX_MAP[n.type] === "amis").length,
-    team:  notifications.filter((n) => !n.read && NOTIF_BOX_MAP[n.type] === "team").length,
   };
 
   return (
@@ -201,8 +194,8 @@ export default function NotificationsPage() {
       </div>
 
       {/* Boxes tabs */}
-      <div className="grid grid-cols-3 gap-3">
-        {(["perso", "amis", "team"] as NotifBox[]).map((box) => {
+      <div className="grid grid-cols-2 gap-3">
+        {(["perso", "amis"] as NotifBox[]).map((box) => {
           const cfg = BOX_CONFIG[box];
           const count = notifications.filter((n) => NOTIF_BOX_MAP[n.type] === box).length;
           const unread = unreadByBox[box];

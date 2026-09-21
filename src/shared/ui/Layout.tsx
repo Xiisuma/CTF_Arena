@@ -40,8 +40,21 @@ export default function Layout({ children }: { children: ReactNode }) {
       <nav className="sticky top-0 z-40 border-b border-primary bg-secondary/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-5">
-            <Link to="/" className="text-lg font-extrabold accent-primary">
-              🏴 CTF Arena
+            <Link to="/" aria-label="CTF Arena — accueil" className="shrink-0">
+              <img
+                src="/logo.svg"
+                alt="CTF Arena"
+                width={320}
+                height={80}
+                className="brand-logo-dark h-9 w-auto"
+              />
+              <img
+                src="/logo-on-light.svg"
+                alt="CTF Arena"
+                width={320}
+                height={80}
+                className="brand-logo-light h-9 w-auto"
+              />
             </Link>
             <div className="hidden items-center gap-2 sm:flex">
               {navItems

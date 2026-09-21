@@ -50,6 +50,7 @@ describe("validate()", () => {
 describe("ChallengeSchema", () => {
   const valid = {
     id: "c1", title: "SQLi 101", category: "web", points: 100,
+    currentPoints: 95, solves: 2,
     description: "Trouvez le flag", files: [], flag: "CTF{test}",
     createdAt: "2026-01-01",
   };

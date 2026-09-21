@@ -77,7 +77,6 @@ export default function PublicProfilePage() {
               {profile.rank && (
                 <span className="text-xs text-tertiary">· #{profile.rank} du classement</span>
               )}
-              <span className="text-xs text-tertiary">· {profile.playMode === "multiplayer" ? "🛡️ Multiplayer" : "🎯 Solo"}</span>
             </div>
             {profile.bio && (
               <p className="mt-2 text-sm text-secondary leading-relaxed">{profile.bio}</p>

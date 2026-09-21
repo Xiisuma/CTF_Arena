@@ -96,6 +96,6 @@ export async function getUserById(id: string): Promise<User | null> {
   const players = await getPlayersWithPoints();
   const p = players.find((pl) => pl.id === id);
   if (!p) return null;
-  return { id: p.id, username: p.username, isAdmin: p.isAdmin, createdAt: "", playMode: "solo" as const };
+  return { id: p.id, username: p.username, isAdmin: p.isAdmin, createdAt: "" };
 }
 
