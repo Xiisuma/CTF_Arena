@@ -10,7 +10,7 @@
 import { useEffect, useRef } from "react";
 
 export type WSMessage = {
-  type: "players" | "teams" | "challenges" | "ctf_state" | string;
+  type: "players" | "challenges" | "ctf_state" | string;
 };
 
 export function useWebSocket(onMessage: (msg: WSMessage) => void, userId?: string | number): void {

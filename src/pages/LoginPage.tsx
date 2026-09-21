@@ -346,75 +346,6 @@ function LoginView({
   );
 }
 
-// ─── Sélecteur de mode de jeu ─────────────────────────────────────────────────
-
-type PlayMode = "solo" | "multiplayer";
-
-function PlayModeSelector({
-  value,
-  onChange,
-  error,
-}: {
-  value: PlayMode | "";
-  onChange: (v: PlayMode) => void;
-  error?: string;
-}) {
-  const uid = useId();
-  const options: { value: PlayMode; emoji: string; label: string; desc: string }[] = [
-    {
-      value: "solo",
-      emoji: "🧑‍💻",
-      label: "Solo",
-      desc: "Tu joues seul. Tes flags te sont attribués personnellement.",
-    },
-    {
-      value: "multiplayer",
-      emoji: "👥",
-      label: "Équipe",
-      desc: "Tu rejoins ou crées une équipe. Les flags sont partagés entre membres.",
-    },
-  ];
-
-  return (
-    <div className="space-y-1.5">
-      <span
-        id={`${uid}-playmode`}
-        className="block text-xs font-semibold uppercase tracking-widest text-tertiary"
-      >
-        Mode de jeu <span className="text-rose-400">*</span>
-      </span>
-      <div
-        role="group"
-        aria-labelledby={`${uid}-playmode`}
-        className={`grid grid-cols-2 gap-2 ${error ? "ring-1 ring-rose-500/40 rounded-xl" : ""}`}
-      >
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left
-                        transition-all duration-200 ${
-              value === opt.value
-                ? "border-accent-primary/50 bg-accent-primary/15 ring-1 ring-accent-primary/30"
-                : "border-primary bg-input hover:bg-card hover:text-secondary"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{opt.emoji}</span>
-              <span className={`text-sm font-bold ${value === opt.value ? "text-accent-secondary" : "text-primary"}`}>
-                {opt.label}
-              </span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-tertiary">{opt.desc}</p>
-          </button>
-        ))}
-      </div>
-      {error && <p className="text-[11px] text-rose-400 leading-relaxed">{error}</p>}
-    </div>
-  );
-}
-
 // ─── Vue : Inscription ────────────────────────────────────────────────────────
 
 function RegisterView({ onSwitch }: { onSwitch: () => void }) {
@@ -425,7 +356,6 @@ function RegisterView({ onSwitch }: { onSwitch: () => void }) {
   const [confirm, setConfirm] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState<Gender | "">("");
-  const [playMode, setPlayMode] = useState<PlayMode | "">("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -463,8 +393,6 @@ function RegisterView({ onSwitch }: { onSwitch: () => void }) {
 
     if (!gender) next.gender = "Veuillez sélectionner votre genre";
 
-    if (!playMode) next.playMode = "Veuillez choisir un mode de jeu";
-
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -482,7 +410,6 @@ function RegisterView({ onSwitch }: { onSwitch: () => void }) {
       password,
       age: ageNum,
       gender: gender as Gender,
-      playMode: playMode as PlayMode,
     });
     if (err) setServerError(err);
     setLoading(false);
@@ -514,12 +441,6 @@ function RegisterView({ onSwitch }: { onSwitch: () => void }) {
       </div>
 
       <GenderSelector value={gender} onChange={setGender} error={errors.gender} />
-
-      <PlayModeSelector
-        value={playMode}
-        onChange={setPlayMode}
-        error={errors.playMode}
-      />
 
       <Field
         label="Email"
