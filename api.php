@@ -17,6 +17,9 @@ error_reporting(E_ALL);
 ini_set("display_errors", "0");
 ini_set("log_errors", "1");
 
+// Catalogue des succès, partagé avec init.php (une seule source de vérité)
+require_once __DIR__ . '/achievements_catalogue.php';
+
 // ─── Gestionnaire d'exceptions global ────────────────────────────────────────
 // Toute exception non catchée retourne un JSON 500 au lieu d'un body vide.
 set_exception_handler(function (Throwable $e): void {
@@ -618,15 +621,281 @@ function compute_ranking_from_db(PDO $pdo): array
   return $pdo
     ->query(
       'SELECT u.id AS user_id, u.username,
-                COUNT(s.id) AS flags_found,
-                COALESCE(SUM(s.points_awarded), 0) AS total_points
+                (SELECT COUNT(*) FROM submissions s WHERE s.user_id = u.id) AS flags_found,
+                (SELECT COALESCE(SUM(s.points_awarded), 0) FROM submissions s WHERE s.user_id = u.id)
+                + (SELECT COALESCE(SUM(ua.points_awarded), 0) FROM user_achievements ua WHERE ua.user_id = u.id)
+                  AS total_points
          FROM users u
-         LEFT JOIN submissions s ON s.user_id = u.id
          WHERE u.is_admin = 0
-         GROUP BY u.id, u.username
          ORDER BY total_points DESC, flags_found DESC',
     )
     ->fetchAll();
+}
+
+// ─── Succès intégrés ─────────────────────────────────────────────────────────
+
+/** Points de la n-ième occurrence de First Blood pour un même joueur. */
+function first_blood_points(int $alreadyEarned): int
+{
+  $curve = [25, 21, 18, 14, 10];
+  return $curve[min($alreadyEarned, count($curve) - 1)];
+}
+
+/** Difficulté effective d'un challenge (mode auto = déduite des points). */
+function challenge_difficulty(string $mode, ?string $manual, int $points): string
+{
+  if ($mode !== "auto" && $manual) {
+    return $manual;
+  }
+  if ($mode !== "auto" && in_array($mode, ["easy", "medium", "hard"], true)) {
+    return $mode;
+  }
+  if ($points < 100) {
+    return "easy";
+  }
+  return $points < 200 ? "medium" : "hard";
+}
+
+/**
+ * Débloque un succès. Les points sont figés dans la ligne : modifier le
+ * catalogue plus tard ne réécrit pas les scores déjà acquis.
+ */
+function award_achievement(
+  PDO $pdo,
+  int $userId,
+  string $achievementId,
+  int $points,
+  string $context = "",
+  string $username = "",
+): bool {
+  $stmt = $pdo->prepare(
+    "INSERT IGNORE INTO user_achievements
+         (id, user_id, achievement_id, context, points_awarded, unlocked_at)
+     VALUES (UUID(), ?, ?, ?, ?, NOW())",
+  );
+  $stmt->execute([$userId, $achievementId, $context, $points]);
+  if ($stmt->rowCount() === 0) {
+    return false;
+  }
+  log_activity("achievement_unlocked", $userId, $username, [
+    "achievement" => $achievementId,
+    "points" => $points,
+    "context" => $context,
+  ]);
+  notify_ws("players");
+  return true;
+}
+
+/**
+ * Évalue les succès intégrés pour un joueur.
+ *
+ * $context décrit l'action qui vient d'avoir lieu (validation de flag) ; sans
+ * contexte, seuls les succès d'état sont réévalués. Tout est recalculé côté
+ * serveur : le client n'a aucun moyen de s'attribuer un succès.
+ */
+function evaluate_builtin_achievements(PDO $pdo, int $userId, array $context = []): void
+{
+  $userStmt = $pdo->prepare(
+    "SELECT id, username, is_admin, clean_streak, was_bottom_half FROM users WHERE id = ?",
+  );
+  $userStmt->execute([$userId]);
+  $user = $userStmt->fetch();
+  if (!$user || $user["is_admin"]) {
+    return;
+  }
+  $username = $user["username"];
+  $catalogue = builtin_achievements();
+
+  $unlock = function (string $id, string $ctx = "", ?int $points = null) use (
+    $pdo,
+    $userId,
+    $username,
+    $catalogue,
+  ): bool {
+    if (!isset($catalogue[$id])) {
+      return false;
+    }
+    return award_achievement(
+      $pdo,
+      $userId,
+      $id,
+      $points ?? $catalogue[$id][3],
+      $ctx,
+      $username,
+    );
+  };
+
+  // ── Succès liés à la validation qui vient d'avoir lieu ───────────────────
+  if (!empty($context)) {
+    if (!empty($context["firstBlood"])) {
+      $seen = $pdo->prepare(
+        "SELECT COUNT(*) FROM user_achievements
+         WHERE user_id = ? AND achievement_id = 'builtin-first-blood'",
+      );
+      $seen->execute([$userId]);
+      $unlock(
+        "builtin-first-blood",
+        (string) ($context["challengeId"] ?? ""),
+        first_blood_points((int) $seen->fetchColumn()),
+      );
+    }
+    if (($context["wrongAttempts"] ?? 0) >= 10) {
+      $unlock("builtin-tete-dure");
+    }
+    if (($context["difficulty"] ?? "") === "hard" && (int) ($context["wrongAttempts"] ?? 0) === 0) {
+      $unlock("builtin-premier-coup");
+    }
+    if (!empty($context["atFloor"])) {
+      $unlock("builtin-dernier-mot");
+    }
+    if (!empty($context["boosted"])) {
+      $unlock("builtin-chasseur");
+    }
+    if (!empty($context["scramble"])) {
+      $unlock("builtin-derniere-minute");
+    }
+    if (!empty($context["mystery"])) {
+      $unlock("builtin-mystere");
+    }
+  }
+
+  // ── Succès d'état, recalculés à chaque évaluation ────────────────────────
+  $flagsStmt = $pdo->prepare(
+    'SELECT s.challenge_id, s.submitted_at, s.wrong_attempts, s.points_awarded,
+                c.category, c.points AS base_points, c.difficulty_mode, c.difficulty
+         FROM submissions s JOIN challenges c ON c.id = s.challenge_id
+         WHERE s.user_id = ? ORDER BY s.submitted_at ASC',
+  );
+  $flagsStmt->execute([$userId]);
+  $flags = $flagsStmt->fetchAll();
+
+  if ($flags) {
+    $times = array_map(fn($f) => strtotime($f["submitted_at"]), $flags);
+
+    // Rafale : 5 validations dans une fenêtre de 30 minutes
+    for ($i = 0; $i + 4 < count($times); $i++) {
+      if ($times[$i + 4] - $times[$i] <= 1800) {
+        $unlock("builtin-rafale");
+        break;
+      }
+    }
+
+    // Éclaireur : 3 catégories différentes dans une fenêtre de 30 minutes
+    for ($i = 0; $i < count($flags); $i++) {
+      $cats = [];
+      for ($j = $i; $j < count($flags) && $times[$j] - $times[$i] <= 1800; $j++) {
+        $cats[$flags[$j]["category"]] = true;
+      }
+      if (count($cats) >= 3) {
+        $unlock("builtin-eclaireur");
+        break;
+      }
+    }
+
+    // À l'envers : un challenge difficile validé sans aucun facile au compteur
+    $hasEasy = false;
+    $hasHard = false;
+    foreach ($flags as $f) {
+      $diff = challenge_difficulty(
+        $f["difficulty_mode"],
+        $f["difficulty"],
+        (int) $f["base_points"],
+      );
+      $hasEasy = $hasEasy || $diff === "easy";
+      $hasHard = $hasHard || $diff === "hard";
+    }
+    if ($hasHard && !$hasEasy) {
+      $unlock("builtin-a-l-envers");
+    }
+
+    // Catégories : couverture, complétion, complétion parfaite
+    $chalsByCat = [];
+    foreach ($pdo->query("SELECT id, category FROM challenges")->fetchAll() as $ch) {
+      $chalsByCat[$ch["category"]][] = (int) $ch["id"];
+    }
+    $solvedByCat = [];
+    $wrongByCat = [];
+    foreach ($flags as $f) {
+      $solvedByCat[$f["category"]][] = (int) $f["challenge_id"];
+      $wrongByCat[$f["category"]] =
+        ($wrongByCat[$f["category"]] ?? 0) + (int) $f["wrong_attempts"];
+    }
+    $categoriesWithChals = array_keys($chalsByCat);
+    if (
+      count($categoriesWithChals) >= 2 &&
+      count(array_diff($categoriesWithChals, array_keys($solvedByCat))) === 0
+    ) {
+      $unlock("builtin-touche-a-tout");
+    }
+    foreach ($chalsByCat as $cat => $chalIds) {
+      if (count($chalIds) < 2) {
+        continue;
+      }
+      if (count(array_diff($chalIds, $solvedByCat[$cat] ?? [])) === 0) {
+        $unlock("builtin-completiste");
+        if (($wrongByCat[$cat] ?? 0) === 0) {
+          $unlock("builtin-perfectionniste");
+        }
+      }
+    }
+  }
+
+  // Sans faute : 3 validations d'affilée sans flag faux
+  if ((int) $user["clean_streak"] >= 3) {
+    $unlock("builtin-sans-faute");
+  }
+
+  // Classement : podium précoce et remontada
+  $ranking = compute_ranking_from_db($pdo);
+  $rank = null;
+  foreach ($ranking as $i => $row) {
+    if ((int) $row["user_id"] === $userId) {
+      $rank = $i + 1;
+      break;
+    }
+  }
+  if ($rank !== null) {
+    $total = count($ranking);
+    if ($total >= 4 && $rank > (int) ceil($total / 2) && !$user["was_bottom_half"]) {
+      $pdo->prepare("UPDATE users SET was_bottom_half = 1 WHERE id = ?")->execute([$userId]);
+      $user["was_bottom_half"] = 1;
+    }
+    if ($rank === 1) {
+      $startedAt = $pdo
+        ->query("SELECT state_value FROM ctf_state WHERE state_key = 'game_started_at'")
+        ->fetchColumn();
+      if ($startedAt && time() - strtotime($startedAt) >= 1800) {
+        $unlock("builtin-podium-precoce");
+      }
+    }
+    if ($rank <= 3 && $user["was_bottom_half"]) {
+      $unlock("builtin-remontada");
+    }
+  }
+
+  // Amis acceptés
+  $friendsStmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM friend_requests
+     WHERE status = 'accepted' AND (from_user_id = ? OR to_user_id = ?)",
+  );
+  $friendsStmt->execute([$userId, $userId]);
+  $friends = (int) $friendsStmt->fetchColumn();
+  if ($friends >= 1) {
+    $unlock("builtin-premier-contact");
+  }
+  if ($friends >= 5) {
+    $unlock("builtin-charismatique");
+  }
+
+  // Collectionneur en dernier : il compte les autres succès déjà débloqués
+  $countStmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM user_achievements
+     WHERE user_id = ? AND achievement_id <> 'builtin-collectionneur'",
+  );
+  $countStmt->execute([$userId]);
+  if ((int) $countStmt->fetchColumn() >= 5) {
+    $unlock("builtin-collectionneur");
+  }
 }
 
 // ─── Achievements auto ────────────────────────────────────────────────────────
@@ -1669,7 +1938,8 @@ switch ($action) {
     }
 
     $challenge = $pdo->prepare(
-      "SELECT flag_encrypted, points, title, created_by FROM challenges WHERE id = ?",
+      "SELECT flag_encrypted, points, title, created_by, difficulty_mode, difficulty
+       FROM challenges WHERE id = ?",
     );
     $challenge->execute([$challengeId]);
     $chal = $challenge->fetch();
@@ -1705,6 +1975,7 @@ switch ($action) {
       }
       increment_flag_rate_limit($auth["id"]);
       record_flag_attempt($pdo, (int) $auth["id"], $challengeId, $flagInput);
+      $pdo->prepare("UPDATE users SET clean_streak = 0 WHERE id = ?")->execute([$auth["id"]]);
       log_activity("flag_wrong", (int) $auth["id"], $auth["username"], [
         "challenge" => $chal["title"] ?? "",
       ]);
@@ -1739,15 +2010,35 @@ switch ($action) {
     }
 
     // Points figés à la résolution : les joueurs déjà passés gardent les leurs.
-    $finalPoints =
-      next_challenge_points($pdo, $challengeId, (int) $chal["points"]) * $eventBoost;
+    $solvesBefore = $pdo->prepare("SELECT COUNT(*) FROM submissions WHERE challenge_id = ?");
+    $solvesBefore->execute([$challengeId]);
+    $solveRank = (int) $solvesBefore->fetchColumn() + 1;
+    $basePoints = (int) $chal["points"];
+    $dynamicPoints = dynamic_points($basePoints, $solveRank);
+    $finalPoints = $dynamicPoints * $eventBoost;
+
+    // Essais ratés accumulés sur ce challenge, avant que l'historique ne soit effacé
+    $attemptsStmt = $pdo->prepare(
+      "SELECT COUNT(*) FROM flag_attempts WHERE user_id = ? AND challenge_id = ?",
+    );
+    $attemptsStmt->execute([$auth["id"], $challengeId]);
+    $wrongAttempts = (int) $attemptsStmt->fetchColumn();
 
     $pdo
       ->prepare(
-        'INSERT INTO submissions (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
-               VALUES (?, ?, ?, ?, NOW())',
+        'INSERT INTO submissions (user_id, challenge_id, points_awarded, wrong_attempts, solve_time_ms, submitted_at)
+               VALUES (?, ?, ?, ?, ?, NOW())',
       )
-      ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
+      ->execute([$auth["id"], $challengeId, $finalPoints, $wrongAttempts, $solveTimeMs]);
+
+    // Série « Sans faute » : une validation sans essai raté la prolonge
+    $pdo
+      ->prepare(
+        $wrongAttempts === 0
+          ? "UPDATE users SET clean_streak = clean_streak + 1 WHERE id = ?"
+          : "UPDATE users SET clean_streak = 0 WHERE id = ?",
+      )
+      ->execute([$auth["id"]]);
 
     // Challenge résolu : son historique d'essais n'a plus lieu d'être
     $pdo
@@ -1755,6 +2046,19 @@ switch ($action) {
       ->execute([$auth["id"], $challengeId]);
 
     evaluate_achievements_for_user($pdo, $auth["id"]);
+    evaluate_builtin_achievements($pdo, (int) $auth["id"], [
+      "challengeId" => $challengeId,
+      "firstBlood" => $solveRank === 1,
+      "wrongAttempts" => $wrongAttempts,
+      "difficulty" => challenge_difficulty(
+        $chal["difficulty_mode"] ?? "auto",
+        $chal["difficulty"] ?? null,
+        $basePoints,
+      ),
+      "atFloor" => $dynamicPoints <= (int) round(($basePoints * SCORING_FLOOR_PERCENT) / 100),
+      "boosted" => $eventBoost > 1,
+      "scramble" => !empty($ctfState["scramble_started_at"]),
+    ]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [
       "challenge" => $chal["title"] ?? "",
@@ -1872,17 +2176,47 @@ switch ($action) {
   // ════════════════════════════════════════════════════════════════════════
 
   case "get_achievements":
-    require_auth();
+    $auth = require_auth();
+    $pdo = get_pdo();
     $limit = min(max(1, (int) ($_GET["limit"] ?? 500)), 1000);
     $offset = max(0, (int) ($_GET["offset"] ?? 0));
-    $stmt = get_pdo()->prepare(
-      "SELECT id, title, description, icon, condition_type, condition_value, condition_category, created_at FROM achievements ORDER BY created_at LIMIT ? OFFSET ?",
+    $stmt = $pdo->prepare(
+      "SELECT id, title, description, icon, condition_type, condition_value, condition_category,
+              points, is_hidden, is_repeatable, created_at
+       FROM achievements ORDER BY created_at LIMIT ? OFFSET ?",
     );
     $stmt->execute([$limit, $offset]);
+
+    // Un succès caché ne révèle ni son nom ni sa condition tant que le joueur
+    // ne l'a pas débloqué : le masquage se fait ici, pas dans l'interface.
+    $mineStmt = $pdo->prepare(
+      "SELECT DISTINCT achievement_id FROM user_achievements WHERE user_id = ?",
+    );
+    $mineStmt->execute([$auth["id"]]);
+    $mine = array_flip($mineStmt->fetchAll(PDO::FETCH_COLUMN));
+
     json_response([
       "ok" => true,
-      "achievements" => array_map(
-        fn($r) => [
+      "achievements" => array_map(function ($r) use ($mine, $auth) {
+        $hidden = (bool) $r["is_hidden"];
+        $revealed = $auth["is_admin"] || isset($mine[$r["id"]]);
+        if ($hidden && !$revealed) {
+          return [
+            "id" => $r["id"],
+            "title" => "Succès caché",
+            "description" => "Débloquez-le pour découvrir de quoi il s'agit.",
+            "icon" => "❓",
+            "condition" => "hidden",
+            "conditionValue" => 0,
+            "conditionCategory" => null,
+            "points" => 0,
+            "isHidden" => true,
+            "isLocked" => true,
+            "isRepeatable" => false,
+            "createdAt" => $r["created_at"],
+          ];
+        }
+        return [
           "id" => $r["id"],
           "title" => $r["title"],
           "description" => $r["description"],
@@ -1890,10 +2224,13 @@ switch ($action) {
           "condition" => $r["condition_type"],
           "conditionValue" => (int) $r["condition_value"],
           "conditionCategory" => $r["condition_category"],
+          "points" => (int) $r["points"],
+          "isHidden" => $hidden,
+          "isLocked" => false,
+          "isRepeatable" => (bool) $r["is_repeatable"],
           "createdAt" => $r["created_at"],
-        ],
-        $stmt->fetchAll(),
-      ),
+        ];
+      }, $stmt->fetchAll()),
     ]);
 
   case "add_achievement":
@@ -1923,6 +2260,9 @@ switch ($action) {
     if (!($body["id"] ?? "")) {
       json_error("ID manquant");
     }
+    if (isset(builtin_achievements()[$body["id"]])) {
+      json_error("Les succès intégrés ne sont pas modifiables");
+    }
     get_pdo()
       ->prepare(
         "UPDATE achievements SET title=?, description=?, icon=?, condition_type=?, condition_value=?, condition_category=? WHERE id=?",
@@ -1944,6 +2284,9 @@ switch ($action) {
     if (!($body["id"] ?? "")) {
       json_error("ID manquant");
     }
+    if (isset(builtin_achievements()[$body["id"]])) {
+      json_error("Les succès intégrés ne sont pas supprimables");
+    }
     get_pdo()
       ->prepare("DELETE FROM achievements WHERE id = ?")
       ->execute([$body["id"]]);
@@ -1956,7 +2299,8 @@ switch ($action) {
     $limit = min(max(1, (int) ($_GET["limit"] ?? 500)), 1000);
     $offset = max(0, (int) ($_GET["offset"] ?? 0));
     $stmt = get_pdo()->prepare(
-      "SELECT id, user_id, achievement_id, unlocked_at FROM user_achievements WHERE user_id = ? LIMIT ? OFFSET ?",
+      "SELECT id, user_id, achievement_id, context, points_awarded, unlocked_at
+       FROM user_achievements WHERE user_id = ? LIMIT ? OFFSET ?",
     );
     $stmt->execute([$userId, $limit, $offset]);
     json_response(["ok" => true, "userAchievements" => $stmt->fetchAll()]);
@@ -1991,11 +2335,15 @@ switch ($action) {
     $targetUserStmt->execute([$targetUserId]);
     $targetRow = $targetUserStmt->fetch();
     $targetUsername = $targetRow ? $targetRow["username"] : "";
+    $pointsStmt = get_pdo()->prepare("SELECT points FROM achievements WHERE id = ?");
+    $pointsStmt->execute([$achId]);
+    $achPoints = (int) $pointsStmt->fetchColumn();
     get_pdo()
       ->prepare(
-        "INSERT IGNORE INTO user_achievements (id, user_id, achievement_id, unlocked_at) VALUES (UUID(), ?, ?, NOW())",
+        "INSERT IGNORE INTO user_achievements (id, user_id, achievement_id, context, points_awarded, unlocked_at)
+         VALUES (UUID(), ?, ?, '', ?, NOW())",
       )
-      ->execute([$targetUserId, $achId]);
+      ->execute([$targetUserId, $achId, $achPoints]);
     log_activity("achievement_unlocked", $targetUserId, $targetUsername, ["achievement" => $achId]);
     notify_ws("players");
     json_response(["ok" => true]);
@@ -2016,6 +2364,7 @@ switch ($action) {
       json_error("Accès refusé", 403);
     }
     evaluate_achievements_for_user(get_pdo(), $userId);
+    evaluate_builtin_achievements(get_pdo(), $userId);
     notify_ws("players");
     json_response(["ok" => true]);
 
@@ -2027,12 +2376,12 @@ switch ($action) {
     require_admin();
     $stmt = get_pdo()->query(
       'SELECT u.id, u.username, u.email, u.age, u.gender, u.is_admin, u.is_author, u.created_at,
-                    COALESCE(SUM(s.points_awarded), 0) AS points,
-                    COUNT(s.id) AS solved
+                    (SELECT COALESCE(SUM(s.points_awarded), 0) FROM submissions s WHERE s.user_id = u.id)
+                    + (SELECT COALESCE(SUM(ua.points_awarded), 0) FROM user_achievements ua WHERE ua.user_id = u.id)
+                      AS points,
+                    (SELECT COUNT(*) FROM submissions s WHERE s.user_id = u.id) AS solved
              FROM users u
-             LEFT JOIN submissions s ON s.user_id = u.id
              WHERE u.is_admin = 0
-             GROUP BY u.id
              ORDER BY points DESC',
     );
     json_response(["ok" => true, "players" => $stmt->fetchAll()]);
@@ -2150,11 +2499,22 @@ switch ($action) {
   case "accept_friend_request":
     $auth = require_auth();
     $reqId = get_body()["requestId"] ?? "";
-    get_pdo()
+    $pdo = get_pdo();
+    $reqStmt = $pdo->prepare(
+      'SELECT from_user_id FROM friend_requests WHERE id=? AND to_user_id=? AND status="pending"',
+    );
+    $reqStmt->execute([$reqId, $auth["id"]]);
+    $pending = $reqStmt->fetch();
+    $pdo
       ->prepare(
         'UPDATE friend_requests SET status="accepted" WHERE id=? AND to_user_id=? AND status="pending"',
       )
       ->execute([$reqId, $auth["id"]]);
+    if ($pending) {
+      // Les deux côtés gagnent un ami : les deux sont réévalués.
+      evaluate_builtin_achievements($pdo, (int) $auth["id"]);
+      evaluate_builtin_achievements($pdo, (int) $pending["from_user_id"]);
+    }
     json_response(["ok" => true]);
 
   case "reject_friend_request":
@@ -2588,6 +2948,15 @@ switch ($action) {
              ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = NOW()',
       )
       ->execute([$key, $value]);
+    if ($key === "game_started") {
+      // Horodatage du lancement : certains succès ne s'ouvrent qu'après 30 minutes.
+      $pdo
+        ->prepare(
+          "INSERT INTO ctf_state (state_key, state_value) VALUES ('game_started_at', ?)
+           ON DUPLICATE KEY UPDATE state_value = VALUES(state_value), updated_at = NOW()",
+        )
+        ->execute([$value === "1" ? date("Y-m-d H:i:s") : ""]);
+    }
     log_activity("ctf_state_change", (int) $auth["id"], $auth["username"] ?? "admin", [
       "key" => $key,
       "value" => $value,
@@ -2609,6 +2978,51 @@ switch ($action) {
       ->query("SELECT user_id, username, flags_found FROM v_most_flags LIMIT 1")
       ->fetch();
 
+    // 3. Joueur avec le plus de succès. À égalité, celui dont les succès sont
+    // les plus rares l'emporte ; puis le plus rapide à avoir fini sa collection.
+    $holders = [];
+    foreach (
+      $pdo
+        ->query(
+          "SELECT achievement_id, COUNT(DISTINCT user_id) AS holders
+           FROM user_achievements GROUP BY achievement_id",
+        )
+        ->fetchAll()
+      as $row
+    ) {
+      $holders[$row["achievement_id"]] = max(1, (int) $row["holders"]);
+    }
+    $achRows = $pdo
+      ->query(
+        "SELECT ua.user_id, u.username, ua.achievement_id, ua.unlocked_at
+         FROM user_achievements ua JOIN users u ON u.id = ua.user_id
+         WHERE u.is_admin = 0",
+      )
+      ->fetchAll();
+    $byUser = [];
+    foreach ($achRows as $row) {
+      $uid = (int) $row["user_id"];
+      if (!isset($byUser[$uid])) {
+        $byUser[$uid] = [
+          "userId" => $uid,
+          "username" => $row["username"],
+          "count" => 0,
+          "rarity" => 0.0,
+          "lastAt" => "",
+        ];
+      }
+      $byUser[$uid]["count"]++;
+      $byUser[$uid]["rarity"] += 1 / ($holders[$row["achievement_id"]] ?? 1);
+      if ($row["unlocked_at"] > $byUser[$uid]["lastAt"]) {
+        $byUser[$uid]["lastAt"] = $row["unlocked_at"];
+      }
+    }
+    usort($byUser, function ($a, $b) {
+      return [$b["count"], $b["rarity"], $a["lastAt"]] <=>
+        [$a["count"], $a["rarity"], $b["lastAt"]];
+    });
+    $mostAchievements = $byUser[0] ?? null;
+
     json_response([
       "ok" => true,
       "soloTop3" => array_map(
@@ -2625,6 +3039,13 @@ switch ($action) {
           "userId" => (int) $mostFlags["user_id"],
           "username" => $mostFlags["username"],
           "flagsFound" => (int) $mostFlags["flags_found"],
+        ]
+        : null,
+      "mostAchievements" => $mostAchievements
+        ? [
+          "userId" => $mostAchievements["userId"],
+          "username" => $mostAchievements["username"],
+          "count" => $mostAchievements["count"],
         ]
         : null,
     ]);
@@ -2650,12 +3071,12 @@ switch ($action) {
 
     // Points + flags (solo)
     $statsStmt = $pdo->prepare('
-            SELECT COUNT(s.id) AS solved,
-                   COALESCE(SUM(s.points_awarded), 0) AS points
-            FROM submissions s
-            WHERE s.user_id = :uid
+            SELECT (SELECT COUNT(*) FROM submissions s WHERE s.user_id = :uid) AS solved,
+                   (SELECT COALESCE(SUM(s.points_awarded), 0) FROM submissions s WHERE s.user_id = :uid2)
+                   + (SELECT COALESCE(SUM(ua.points_awarded), 0) FROM user_achievements ua WHERE ua.user_id = :uid3)
+                     AS points
         ');
-    $statsStmt->execute([":uid" => $uid]);
+    $statsStmt->execute([":uid" => $uid, ":uid2" => $uid, ":uid3" => $uid]);
     $stats = $statsStmt->fetch();
 
     // Rang solo
@@ -2941,6 +3362,10 @@ switch ($action) {
       ->prepare("DELETE FROM flag_attempts WHERE user_id = ? AND challenge_id = ?")
       ->execute([$auth["id"], $challengeId]);
     evaluate_achievements_for_user($pdo, $auth["id"]);
+    evaluate_builtin_achievements($pdo, (int) $auth["id"], [
+      "challengeId" => $challengeId,
+      "mystery" => true,
+    ]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [
       "challenge" => $chal["title"],

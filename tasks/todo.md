@@ -360,3 +360,25 @@ mais ne peut jamais valider ses propres challenges.
 - [x] typecheck, lint, 93/93 tests
 - [ ] `php -l` et parcours sur stack jetable (auteur crée, modifie le sien, échoue sur celui d'un
       autre, ne peut pas valider le sien) : à faire, Docker Desktop est arrêté
+
+## Point 6 — succès (2026-09-21, branche `features-succes`)
+
+19 succès validés par Axel : 13 visibles, 6 cachés, 750 points au total hors First Blood
+(répétable, dégressif par joueur : 25, 21, 18, 14, puis 10).
+
+- [x] `achievements_catalogue.php` : catalogue partagé entre api.php (évaluation) et init.php (semis)
+- [x] Colonnes : `achievements.points/is_hidden/is_repeatable`, `user_achievements.context/points_awarded`
+      (clé unique étendue au contexte), `submissions.wrong_attempts`, `users.clean_streak/was_bottom_half`,
+      `ctf_state.game_started_at`
+- [x] `evaluate_builtin_achievements()` : tout est recalculé côté serveur, aucun succès ne vient du client
+- [x] Points des succès comptés dans le classement, la liste admin, le profil public et les vues SQL
+- [x] `get_achievements` masque les succès cachés non débloqués (nom, condition et points)
+- [x] Succès intégrés non modifiables et non supprimables par l'admin
+- [x] Podium : 5e place « le plus de succès », départagée par la rareté puis la rapidité
+- [x] Carte de succès : points affichés, cadenas pour les cachés
+
+### Vérification
+- [x] typecheck, lint, 93/93 tests
+- [ ] `php -l` et parcours sur stack jetable : impossible, Docker Desktop est arrêté et son exécutable
+      est introuvable sur la machine. À refaire dès que Docker est relancé.
+

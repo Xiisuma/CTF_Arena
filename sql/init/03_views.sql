@@ -12,12 +12,12 @@ CREATE OR REPLACE VIEW v_solo_ranking AS
 SELECT
     u.id                                                                    AS user_id,
     u.username,
-    COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(s.points_awarded), 0)                                      AS total_points
+    (SELECT COUNT(*) FROM submissions s WHERE s.user_id = u.id)             AS flags_found,
+    (SELECT COALESCE(SUM(s.points_awarded), 0) FROM submissions s WHERE s.user_id = u.id)
+      + (SELECT COALESCE(SUM(ua.points_awarded), 0) FROM user_achievements ua WHERE ua.user_id = u.id)
+                                                                            AS total_points
 FROM users u
-LEFT JOIN submissions s ON s.user_id = u.id
 WHERE u.is_admin = 0
-GROUP BY u.id, u.username
 HAVING flags_found > 0
 ORDER BY total_points DESC, flags_found DESC;
 

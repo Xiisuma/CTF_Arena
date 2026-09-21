@@ -113,6 +113,7 @@ describe("AchievementSchema", () => {
   const valid = {
     id: "a1", title: "Premier Sang", description: "Premier flag du CTF",
     icon: "🩸", condition: "first_blood", conditionValue: 1,
+    points: 25, isHidden: false, isLocked: false, isRepeatable: false,
     createdAt: "2026-01-01",
   };
 

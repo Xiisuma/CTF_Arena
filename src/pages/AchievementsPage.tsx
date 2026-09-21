@@ -137,7 +137,8 @@ export default function AchievementsPage() {
           </div>
         )}
         <p className="text-xs text-tertiary">
-          {myAchievements.length} / {achievements.length} succès débloqués
+          {myAchievements.length} / {achievements.length} succès débloqués ·{" "}
+          {myAchievements.reduce((sum, ua) => sum + ua.pointsAwarded, 0)} points gagnés
         </p>
       </div>
     );
@@ -201,7 +202,13 @@ export default function AchievementsPage() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {a.condition === "builtin" && (
+                <span className="rounded-lg border border-primary bg-input px-3 py-1.5 text-xs text-tertiary">
+                  🎖️ Intégré · +{a.points} pts
+                </span>
+              )}
               <button
+                hidden={a.condition === "builtin"}
                 onClick={() => { setEditing(a); setShowModal(true); }}
                 aria-label={`Modifier ${a.title}`}
                 className="rounded-lg border border-primary bg-input px-3 py-1.5 text-xs text-secondary transition hover:bg-card"
@@ -209,6 +216,7 @@ export default function AchievementsPage() {
                 ✏️ Modifier
               </button>
               <button
+                hidden={a.condition === "builtin"}
                 onClick={() => handleDelete(a.id)}
                 aria-label={`Supprimer ${a.title}`}
                 className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 transition hover:bg-rose-500/20"

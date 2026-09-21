@@ -14,6 +14,10 @@ function normalizeAchievement(raw: Record<string, unknown>): Achievement {
     conditionCategory: (raw.conditionCategory ?? raw.condition_category)
       ? String(raw.conditionCategory ?? raw.condition_category)
       : undefined,
+    points: Number(raw.points ?? 0),
+    isHidden: Boolean(raw.isHidden),
+    isLocked: Boolean(raw.isLocked),
+    isRepeatable: Boolean(raw.isRepeatable),
     createdAt: String(raw.createdAt ?? raw.created_at ?? ""),
   };
   return validate(AchievementSchema, result, "Achievement");
@@ -64,6 +68,8 @@ export async function getUserAchievements(userId?: string): Promise<UserAchievem
       id: String(ua.id),
       userId: String(ua.user_id ?? ua.userId),
       achievementId: String(ua.achievement_id ?? ua.achievementId),
+      context: String(ua.context ?? ""),
+      pointsAwarded: Number(ua.points_awarded ?? ua.pointsAwarded ?? 0),
       unlockedAt: String(ua.unlocked_at ?? ua.unlockedAt ?? ""),
     };
     return validate(UserAchievementSchema, result, "UserAchievement");
@@ -78,6 +84,8 @@ export async function getAllUserAchievements(): Promise<UserAchievement[]> {
       id: String(ua.id),
       userId: String(ua.user_id ?? ua.userId),
       achievementId: String(ua.achievement_id ?? ua.achievementId),
+      context: String(ua.context ?? ""),
+      pointsAwarded: Number(ua.points_awarded ?? ua.pointsAwarded ?? 0),
       unlockedAt: String(ua.unlocked_at ?? ua.unlockedAt ?? ""),
     };
     return validate(UserAchievementSchema, result, "UserAchievement");

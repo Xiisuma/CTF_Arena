@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin      TINYINT(1)       NOT NULL DEFAULT 0,
     is_author     TINYINT(1)       NOT NULL DEFAULT 0
                   COMMENT 'Peut créer des challenges et ne gérer que les siens',
+    clean_streak  INT UNSIGNED     NOT NULL DEFAULT 0
+                  COMMENT 'Validations d’affilée sans flag faux (succès Sans faute)',
+    was_bottom_half TINYINT(1)     NOT NULL DEFAULT 0
+                  COMMENT 'A déjà figuré dans la moitié basse du classement (succès Remontada)',
     created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_username UNIQUE (username),
@@ -123,6 +127,8 @@ CREATE TABLE IF NOT EXISTS submissions (
     challenge_id   INT UNSIGNED NOT NULL,
     points_awarded INT UNSIGNED NOT NULL DEFAULT 0
                    COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif',
+    wrong_attempts INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Flags erronés tapés sur ce challenge avant de le valider',
     solve_time_ms INT UNSIGNED NULL,
     submitted_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_submissions_user_challenge  UNIQUE  (user_id, challenge_id),
@@ -160,6 +166,12 @@ CREATE TABLE IF NOT EXISTS achievements (
     condition_type     VARCHAR(30)  NOT NULL,
     condition_value    INT          NOT NULL DEFAULT 1,
     condition_category VARCHAR(30)  NULL,
+    points             INT UNSIGNED NOT NULL DEFAULT 0
+                       COMMENT 'Points ajoutés au score du joueur au déblocage',
+    is_hidden          TINYINT(1)   NOT NULL DEFAULT 0
+                       COMMENT 'Succès caché : le nom et la condition ne sont révélés qu’au déblocage',
+    is_repeatable      TINYINT(1)   NOT NULL DEFAULT 0
+                       COMMENT 'Débloquable plusieurs fois, une par contexte (ex. First Blood par challenge)',
     created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Définitions des succès débloquables (trophées).';
@@ -168,8 +180,12 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     id             CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
     user_id        INT UNSIGNED NOT NULL,
     achievement_id CHAR(36)     NOT NULL,
+    context        VARCHAR(100) NOT NULL DEFAULT ''
+                   COMMENT 'Contexte du déblocage (id de challenge pour First Blood)',
+    points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Points gagnés — figés au déblocage',
     unlocked_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_user_achievements        UNIQUE  (user_id, achievement_id),
+    CONSTRAINT uq_user_achievements        UNIQUE  (user_id, achievement_id, context),
     INDEX idx_ua_achievement_id            (achievement_id),
     CONSTRAINT fk_user_achievements_users        FOREIGN KEY (user_id)        REFERENCES users(id)        ON DELETE CASCADE,
     CONSTRAINT fk_user_achievements_achievements FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE

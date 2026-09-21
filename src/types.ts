@@ -79,7 +79,9 @@ export type AchievementConditionType =
   | "all_categories"
   | "top3"
   | "all_challenges"
-  | "manual";
+  | "manual"
+  | "builtin"
+  | "hidden";
 
 export interface Achievement {
   id: string;
@@ -89,6 +91,14 @@ export interface Achievement {
   condition: AchievementConditionType;
   conditionValue: number;
   conditionCategory?: string;
+  /** Points ajoutés au score au déblocage. */
+  points: number;
+  /** Succès caché : nom et condition révélés seulement au déblocage. */
+  isHidden: boolean;
+  /** Succès caché encore secret pour ce joueur — le serveur a masqué son contenu. */
+  isLocked: boolean;
+  /** Débloquable plusieurs fois (First Blood : une par challenge). */
+  isRepeatable: boolean;
   createdAt: string;
 }
 
@@ -96,6 +106,10 @@ export interface UserAchievement {
   id: string;
   userId: string;
   achievementId: string;
+  /** Contexte du déblocage — id du challenge pour First Blood. */
+  context: string;
+  /** Points gagnés, figés au déblocage. */
+  pointsAwarded: number;
   unlockedAt: string;
 }
 

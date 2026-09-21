@@ -72,10 +72,14 @@ export const AchievementSchema = z.object({
   condition: z.enum([
     "flags_count", "points_total", "category_flags", "first_blood",
     "speed_runner", "category_perfect", "night_owl", "all_categories",
-    "top3", "all_challenges", "manual",
+    "top3", "all_challenges", "manual", "builtin", "hidden",
   ]),
   conditionValue: num,
   conditionCategory: optStr,
+  points: num,
+  isHidden: bool,
+  isLocked: bool,
+  isRepeatable: bool,
   createdAt: str,
 });
 
@@ -83,6 +87,8 @@ export const UserAchievementSchema = z.object({
   id: str,
   userId: str,
   achievementId: str,
+  context: str,
+  pointsAwarded: num,
   unlockedAt: str,
 });
 

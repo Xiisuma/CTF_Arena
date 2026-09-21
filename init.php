@@ -139,6 +139,7 @@ try {
 // recréation : un marqueur posé hors volume suffit à les distinguer.
 $stateRows = [
     ['game_started', '0'],
+    ['game_started_at', ''],
     ['scramble_started_at', ''],
     ['podium_visible', '0'],
     ['podium_revealed', '0'],
@@ -229,6 +230,56 @@ try {
     echo "[init] challenges.created_by déjà présente.\n";
 }
 
+// ─── Succès : points, succès cachés, déblocages répétables ────────────────────
+$alters = [
+    "achievements ADD COLUMN points INT UNSIGNED NOT NULL DEFAULT 0",
+    "achievements ADD COLUMN is_hidden TINYINT(1) NOT NULL DEFAULT 0",
+    "achievements ADD COLUMN is_repeatable TINYINT(1) NOT NULL DEFAULT 0",
+    "user_achievements ADD COLUMN context VARCHAR(100) NOT NULL DEFAULT ''",
+    "user_achievements ADD COLUMN points_awarded INT UNSIGNED NOT NULL DEFAULT 0",
+    "submissions ADD COLUMN wrong_attempts INT UNSIGNED NOT NULL DEFAULT 0",
+    "users ADD COLUMN clean_streak INT UNSIGNED NOT NULL DEFAULT 0",
+    "users ADD COLUMN was_bottom_half TINYINT(1) NOT NULL DEFAULT 0",
+];
+foreach ($alters as $alter) {
+    try {
+        $pdo->exec("ALTER TABLE $alter");
+        echo "[init] Colonne ajoutée : $alter\n";
+    } catch (Exception $e) {
+        // Colonne déjà présente
+    }
+}
+// First Blood se débloque une fois par challenge : la clé unique doit inclure le contexte.
+try {
+    $pdo->exec("ALTER TABLE user_achievements DROP INDEX uq_user_achievements");
+    $pdo->exec(
+        "ALTER TABLE user_achievements
+         ADD CONSTRAINT uq_user_achievements UNIQUE (user_id, achievement_id, context)"
+    );
+    echo "[init] Clé unique user_achievements étendue au contexte.\n";
+} catch (Exception $e) {
+    // Déjà au bon format
+}
+
+// Catalogue des succès intégrés : semé depuis api.php pour n'avoir qu'une seule
+// source de vérité (titres, points, succès cachés).
+require_once __DIR__ . '/achievements_catalogue.php';
+$seedStmt = $pdo->prepare(
+    "INSERT INTO achievements
+        (id, title, description, icon, condition_type, condition_value, condition_category,
+         points, is_hidden, is_repeatable, created_at)
+     VALUES (?, ?, ?, ?, 'builtin', 1, NULL, ?, ?, ?, NOW())
+     ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description),
+        icon = VALUES(icon), points = VALUES(points), is_hidden = VALUES(is_hidden),
+        is_repeatable = VALUES(is_repeatable)"
+);
+foreach (builtin_achievements() as $achId => [$icon, $title, $description, $points, $hidden, $repeatable]) {
+    $seedStmt->execute([
+        $achId, $title, $description, $icon, $points, $hidden ? 1 : 0, $repeatable ? 1 : 0,
+    ]);
+}
+echo "[init] Succès intégrés semés : " . count(builtin_achievements()) . ".\n";
+
 // ─── Essais de flags ──────────────────────────────────────────────────────────
 // Historique des flags erronés, visible du seul joueur concerné. Effacé pour un
 // challenge dès qu'il le résout.
@@ -252,12 +303,12 @@ $pdo->exec("CREATE OR REPLACE VIEW v_solo_ranking AS
 SELECT
     u.id                                                                    AS user_id,
     u.username,
-    COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(s.points_awarded), 0)                                      AS total_points
+    (SELECT COUNT(*) FROM submissions s WHERE s.user_id = u.id)             AS flags_found,
+    (SELECT COALESCE(SUM(s.points_awarded), 0) FROM submissions s WHERE s.user_id = u.id)
+      + (SELECT COALESCE(SUM(ua.points_awarded), 0) FROM user_achievements ua WHERE ua.user_id = u.id)
+                                                                            AS total_points
 FROM users u
-LEFT JOIN submissions s ON s.user_id = u.id
 WHERE u.is_admin = 0
-GROUP BY u.id, u.username
 HAVING flags_found > 0
 ORDER BY total_points DESC, flags_found DESC");
 
