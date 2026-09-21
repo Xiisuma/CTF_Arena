@@ -116,8 +116,10 @@ CREATE TABLE IF NOT EXISTS challenge_files (
 
 CREATE TABLE IF NOT EXISTS submissions (
     id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id       INT UNSIGNED NOT NULL,
-    challenge_id  INT UNSIGNED NOT NULL,
+    user_id        INT UNSIGNED NOT NULL,
+    challenge_id   INT UNSIGNED NOT NULL,
+    points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif',
     solve_time_ms INT UNSIGNED NULL,
     submitted_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_submissions_user_challenge  UNIQUE  (user_id, challenge_id),

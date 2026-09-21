@@ -13,10 +13,9 @@ SELECT
     u.id                                                                    AS user_id,
     u.username,
     COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(c.points), 0)                                              AS total_points
+    COALESCE(SUM(s.points_awarded), 0)                                      AS total_points
 FROM users u
 LEFT JOIN submissions s ON s.user_id = u.id
-LEFT JOIN challenges  c ON c.id      = s.challenge_id
 WHERE u.is_admin = 0
 GROUP BY u.id, u.username
 HAVING flags_found > 0

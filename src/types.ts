@@ -26,7 +26,12 @@ export interface Challenge {
   id: string;
   title: string;
   category: CategoryType;
+  /** Valeur de départ, celle que l'admin saisit. */
   points: number;
+  /** Valeur que rapporte le challenge au prochain joueur qui le résout. */
+  currentPoints: number;
+  /** Nombre de joueurs l'ayant déjà résolu. */
+  solves: number;
   description: string;
   files: ChallengeFile[];
   // flag_encrypted n'est jamais renvoyé par l'API — le flag est saisi séparément par l'admin

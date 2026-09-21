@@ -6,7 +6,7 @@
  *   - Suppression des colonnes dénormalisées de submissions
  *     (challenge_title, category, points) — JOIN challenges systématique
  *   - SELECT * éliminés (get_achievements)
- *   - compute_ranking_from_db : SUM(c.points) via JOIN challenges
+ *   - compute_ranking_from_db : SUM(submissions.points_awarded)
  */
 
 declare(strict_types=1);
@@ -87,6 +87,13 @@ define("RATE_LIMIT_MAX", (int) (getenv("RATE_LIMIT_MAX") ?: 5));
 define("RATE_LIMIT_WINDOW", (int) (getenv("RATE_LIMIT_WINDOW") ?: 300)); // 5 minutes
 // Tentatives de flag erronées par utilisateur (clé "flag:{userId}" dans rate_limits)
 define("FLAG_ATTEMPT_MAX", (int) (getenv("FLAG_ATTEMPT_MAX") ?: 5));
+
+// ─── Points dégressifs ───────────────────────────────────────────────────────
+// La valeur d'un challenge baisse au fil des résolutions : lentement au début,
+// de plus en plus vite, jusqu'à un plancher. SCORING_DECAY_SOLVES est le rang
+// de résolution à partir duquel le plancher est atteint.
+define("SCORING_DECAY_SOLVES", max(1, (int) (getenv("SCORING_DECAY_SOLVES") ?: 12)));
+define("SCORING_FLOOR_PERCENT", min(100, max(0, (int) (getenv("SCORING_FLOOR_PERCENT") ?: 25))));
 define("FLAG_ATTEMPT_WINDOW", (int) (getenv("FLAG_ATTEMPT_WINDOW") ?: 60)); // 1 minute
 // Créations de comptes par IP. Compteur distinct de celui des connexions : sur
 // un événement sur site, tous les joueurs partagent l'IP publique du lieu, et
@@ -505,6 +512,37 @@ function ctf_game_started(PDO $pdo): bool
   return $stmt->fetchColumn() === "1";
 }
 
+// ─── Points dégressifs ───────────────────────────────────────────────────────
+
+/**
+ * Valeur d'un challenge pour la n-ième résolution.
+ *
+ * Courbe quadratique : la décote est lente sur les premières résolutions puis
+ * s'accélère, jusqu'au plancher (SCORING_FLOOR_PERCENT % de la valeur de
+ * départ) atteint à la SCORING_DECAY_SOLVES-ième résolution suivante.
+ * Exemple avec 100 points, un plancher de 25 % et 12 résolutions :
+ * 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+ *
+ * @param int $basePoints  valeur de départ du challenge
+ * @param int $solveRank   rang de la résolution (1 = premier à résoudre)
+ */
+function dynamic_points(int $basePoints, int $solveRank): int
+{
+  $floor = (int) round(($basePoints * SCORING_FLOOR_PERCENT) / 100);
+  $elapsed = min(max($solveRank - 1, 0), SCORING_DECAY_SOLVES);
+  $ratio = $elapsed / SCORING_DECAY_SOLVES;
+  $value = (int) round($basePoints - ($basePoints - $floor) * $ratio * $ratio);
+  return max($value, $floor);
+}
+
+/** Valeur que rapporterait le challenge au prochain joueur qui le résout. */
+function next_challenge_points(PDO $pdo, int $challengeId, int $basePoints): int
+{
+  $stmt = $pdo->prepare("SELECT COUNT(*) FROM submissions WHERE challenge_id = ?");
+  $stmt->execute([$challengeId]);
+  return dynamic_points($basePoints, (int) $stmt->fetchColumn() + 1);
+}
+
 // ─── Classement ──────────────────────────────────────────────────────────────
 
 function compute_ranking_from_db(PDO $pdo): array
@@ -513,10 +551,9 @@ function compute_ranking_from_db(PDO $pdo): array
     ->query(
       'SELECT u.id AS user_id, u.username,
                 COUNT(s.id) AS flags_found,
-                COALESCE(SUM(c.points), 0) AS total_points
+                COALESCE(SUM(s.points_awarded), 0) AS total_points
          FROM users u
          LEFT JOIN submissions s ON s.user_id = u.id
-         LEFT JOIN challenges  c ON c.id      = s.challenge_id
          WHERE u.is_admin = 0
          GROUP BY u.id, u.username
          ORDER BY total_points DESC, flags_found DESC',
@@ -536,7 +573,7 @@ function evaluate_achievements_for_user(PDO $pdo, int $userId): void
   }
 
   $flagsStmt = $pdo->prepare(
-    'SELECT s.id, s.challenge_id, s.submitted_at, c.category, c.points
+    'SELECT s.id, s.challenge_id, s.submitted_at, c.category, s.points_awarded AS points
          FROM submissions s JOIN challenges c ON c.id = s.challenge_id WHERE s.user_id = ?',
   );
   $flagsStmt->execute([$userId]);
@@ -1321,6 +1358,18 @@ switch ($action) {
              ORDER BY cat.sort_order ASC, c.points ASC',
     );
     $challenges = $stmt->fetchAll();
+
+    // Valeur dégressive : nombre de résolutions par challenge, puis valeur que
+    // rapporterait la prochaine. `points` reste la valeur de départ, celle que
+    // l'admin édite.
+    $solvesStmt = $pdo->query(
+      "SELECT challenge_id, COUNT(*) AS solves FROM submissions GROUP BY challenge_id",
+    );
+    $solvesByChal = [];
+    foreach ($solvesStmt->fetchAll() as $row) {
+      $solvesByChal[$row["challenge_id"]] = (int) $row["solves"];
+    }
+
     // Retourner uniquement les métadonnées — pas de file_get_contents pour éviter le DoS
     // Le contenu est servi à la demande via l'endpoint download_file
     $filesStmt = $pdo->query("SELECT id, challenge_id, file_name FROM challenge_files");
@@ -1334,6 +1383,9 @@ switch ($action) {
     }
     foreach ($challenges as &$ch) {
       $ch["files"] = $filesByChal[$ch["id"]] ?? [];
+      $solves = $solvesByChal[$ch["id"]] ?? 0;
+      $ch["solves"] = $solves;
+      $ch["currentPoints"] = dynamic_points((int) $ch["points"], $solves + 1);
     }
     json_response(["ok" => true, "challenges" => $challenges]);
 
@@ -1570,8 +1622,6 @@ switch ($action) {
         $eventId = (int) $activeEvent["id"];
       }
     }
-    $finalPoints = $chal["points"] * $eventBoost;
-
     $solvedCheck = $pdo->prepare(
       "SELECT id FROM submissions WHERE user_id = ? AND challenge_id = ?",
     );
@@ -1580,12 +1630,16 @@ switch ($action) {
       json_error("Challenge déjà résolu");
     }
 
+    // Points figés à la résolution : les joueurs déjà passés gardent les leurs.
+    $finalPoints =
+      next_challenge_points($pdo, $challengeId, (int) $chal["points"]) * $eventBoost;
+
     $pdo
       ->prepare(
-        'INSERT INTO submissions (user_id, challenge_id, solve_time_ms, submitted_at)
-               VALUES (?, ?, ?, NOW())',
+        'INSERT INTO submissions (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
+               VALUES (?, ?, ?, ?, NOW())',
       )
-      ->execute([$auth["id"], $challengeId, $solveTimeMs]);
+      ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
 
     evaluate_achievements_for_user($pdo, $auth["id"]);
 
@@ -1613,7 +1667,7 @@ switch ($action) {
 
     $stmt = $pdo->prepare(
       'SELECT s.id, s.user_id, u.username, s.challenge_id, c.title AS challenge_title,
-                      c.category, c.points, s.submitted_at, s.solve_time_ms
+                      c.category, s.points_awarded AS points, s.submitted_at, s.solve_time_ms
                FROM submissions s
                JOIN users      u ON u.id = s.user_id
                JOIN challenges c ON c.id = s.challenge_id
@@ -1630,7 +1684,7 @@ switch ($action) {
     $offset = max(0, (int) ($_GET["offset"] ?? 0));
     $stmt = $pdo->prepare(
       'SELECT s.id, s.user_id, u.username, s.challenge_id, c.title AS challenge_title,
-                    c.category, c.points, s.submitted_at, s.solve_time_ms
+                    c.category, s.points_awarded AS points, s.submitted_at, s.solve_time_ms
              FROM submissions s
              JOIN users      u ON u.id = s.user_id
              JOIN challenges c ON c.id = s.challenge_id
@@ -1821,11 +1875,10 @@ switch ($action) {
     require_admin();
     $stmt = get_pdo()->query(
       'SELECT u.id, u.username, u.email, u.age, u.gender, u.is_admin, u.created_at,
-                    COALESCE(SUM(c.points), 0) AS points,
+                    COALESCE(SUM(s.points_awarded), 0) AS points,
                     COUNT(s.id) AS solved
              FROM users u
              LEFT JOIN submissions s ON s.user_id = u.id
-             LEFT JOIN challenges  c ON c.id      = s.challenge_id
              WHERE u.is_admin = 0
              GROUP BY u.id
              ORDER BY points DESC',
@@ -1863,16 +1916,18 @@ switch ($action) {
     $solved = (bool) $body["solved"];
     $pdo = get_pdo();
     if ($solved) {
-      $stmt = $pdo->prepare("SELECT id FROM challenges WHERE id = ?");
+      $stmt = $pdo->prepare("SELECT id, points FROM challenges WHERE id = ?");
       $stmt->execute([$challengeId]);
-      if (!$stmt->fetch()) {
+      $chal = $stmt->fetch();
+      if (!$chal) {
         json_error("Challenge introuvable");
       }
+      $awarded = next_challenge_points($pdo, $challengeId, (int) $chal["points"]);
       $pdo
         ->prepare(
-          "INSERT IGNORE INTO submissions (user_id, challenge_id, submitted_at) VALUES (?, ?, NOW())",
+          "INSERT IGNORE INTO submissions (user_id, challenge_id, points_awarded, submitted_at) VALUES (?, ?, ?, NOW())",
         )
-        ->execute([$userId, $challengeId]);
+        ->execute([$userId, $challengeId, $awarded]);
     } else {
       $pdo
         ->prepare("DELETE FROM submissions WHERE user_id = ? AND challenge_id = ?")
@@ -2414,9 +2469,8 @@ switch ($action) {
     // Points + flags (solo)
     $statsStmt = $pdo->prepare('
             SELECT COUNT(s.id) AS solved,
-                   COALESCE(SUM(c.points), 0) AS points
+                   COALESCE(SUM(s.points_awarded), 0) AS points
             FROM submissions s
-            JOIN challenges c ON c.id = s.challenge_id
             WHERE s.user_id = :uid
         ');
     $statsStmt->execute([":uid" => $uid]);
@@ -2437,7 +2491,7 @@ switch ($action) {
 
     // 5 derniers flags
     $flagsStmt = $pdo->prepare('
-            SELECT c.id, c.title, c.category, c.points, s.submitted_at
+            SELECT c.id, c.title, c.category, s.points_awarded AS points, s.submitted_at
             FROM submissions s
             JOIN challenges c ON c.id = s.challenge_id
             WHERE s.user_id = ?
@@ -2686,7 +2740,6 @@ switch ($action) {
       json_response(["ok" => true, "correct" => false]);
     }
 
-    $finalPoints = $chal["points"] * $multiplier;
     $solvedCheck = $pdo->prepare(
       "SELECT id FROM submissions WHERE user_id = ? AND challenge_id = ?",
     );
@@ -2694,12 +2747,14 @@ switch ($action) {
     if ($solvedCheck->fetch()) {
       json_error("Challenge déjà résolu");
     }
+    $finalPoints =
+      next_challenge_points($pdo, $challengeId, (int) $chal["points"]) * $multiplier;
     $pdo
       ->prepare(
-        'INSERT INTO submissions (user_id, challenge_id, solve_time_ms, submitted_at)
-               VALUES (?, ?, ?, NOW())',
+        'INSERT INTO submissions (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
+               VALUES (?, ?, ?, ?, NOW())',
       )
-      ->execute([$auth["id"], $challengeId, $solveTimeMs]);
+      ->execute([$auth["id"], $challengeId, $finalPoints, $solveTimeMs]);
     evaluate_achievements_for_user($pdo, $auth["id"]);
 
     log_activity("flag_correct", (int) $auth["id"], $auth["username"], [

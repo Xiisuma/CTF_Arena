@@ -315,7 +315,21 @@ Pour repartir d'une base propre : `docker compose down -v && docker compose up`
 
 ### Vue `v_ranking`
 
-Classement calculé automatiquement : `total_points = SUM(c.points via JOIN challenges)`, trié par points puis par nombre de flags.
+Classement calculé automatiquement : `total_points = SUM(submissions.points_awarded)`, trié par points puis par nombre de flags. Un joueur n'apparaît qu'à partir de son premier flag validé.
+
+### Points dégressifs
+
+La valeur d'un challenge baisse à chaque résolution : lentement sur les premières, de plus en plus vite ensuite, jusqu'à un plancher.
+
+```
+points(n) = P − (P − plancher) × ((n − 1) / D)²     borné au plancher
+```
+
+`n` est le rang de la résolution (1 = premier à résoudre), `P` la valeur de départ saisie par l'admin, `D` la variable `SCORING_DECAY_SOLVES` (12 par défaut) et le plancher vaut `SCORING_FLOOR_PERCENT` % de `P` (25 % par défaut).
+
+Exemple pour un challenge à 100 points : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+
+Les points sont **figés à la résolution** et stockés dans `submissions.points_awarded` : le premier garde sa pleine valeur même quand d'autres résolvent après lui. Le multiplicateur d'événement s'applique sur la valeur du moment.
 
 ### Difficulté des challenges
 

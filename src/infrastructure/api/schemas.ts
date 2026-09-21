@@ -39,6 +39,8 @@ export const ChallengeSchema = z.object({
   title: str,
   category: str,
   points: num,
+  currentPoints: num,
+  solves: num,
   description: str,
   files: z.array(ChallengeFileSchema),
   // flag_encrypted n'est jamais renvoyé par l'API — pas de champ flag ici.

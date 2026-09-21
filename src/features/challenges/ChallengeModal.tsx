@@ -25,6 +25,7 @@ export function ChallengeModal({
   const [flagInput, setFlagInput] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { setChronoRunning } = useChronoContext();
   const chrono = useChronometer();
@@ -53,6 +54,7 @@ export function ChallengeModal({
       return;
     }
     if (result.correct) {
+      setEarnedPoints(result.points ?? challenge.currentPoints);
       setSuccess(true);
       onSolved();
     } else {
@@ -61,7 +63,7 @@ export function ChallengeModal({
       setChronoRunning(true);
     }
     setSubmitting(false);
-  }, [flagInput, submitting, chrono, challenge.id, onSolved, setChronoRunning]);
+  }, [flagInput, submitting, chrono, challenge.id, challenge.currentPoints, onSolved, setChronoRunning]);
 
   const handleClose = () => {
     if (chrono.running) {
@@ -82,7 +84,10 @@ export function ChallengeModal({
               >
                 {DIFFICULTY_LABELS[diff]}
               </span>
-              <span className="text-xs text-tertiary">{challenge.points} pts</span>
+              <span className="text-xs text-tertiary">
+                {challenge.currentPoints} pts
+                {challenge.solves > 0 && ` · ${challenge.solves} résolution${challenge.solves > 1 ? "s" : ""}`}
+              </span>
             </div>
             <h2 className="text-xl font-black text-primary">{challenge.title}</h2>
           </div>
@@ -188,7 +193,7 @@ export function ChallengeModal({
                 🎉 Félicitations ! Flag correct !
               </p>
               <p className="mt-1 text-xs text-tertiary">
-                +{challenge.points} points ajoutés à votre score.
+                +{earnedPoints ?? challenge.currentPoints} points ajoutés à votre score.
               </p>
             </div>
           )}

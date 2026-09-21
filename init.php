@@ -194,10 +194,9 @@ SELECT
     u.id                                                                    AS user_id,
     u.username,
     COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(c.points), 0)                                              AS total_points
+    COALESCE(SUM(s.points_awarded), 0)                                      AS total_points
 FROM users u
 LEFT JOIN submissions s ON s.user_id = u.id
-LEFT JOIN challenges  c ON c.id      = s.challenge_id
 WHERE u.is_admin = 0
 GROUP BY u.id, u.username
 HAVING flags_found > 0
@@ -253,6 +252,30 @@ if ($hasPlayMode) {
     echo "[init] Colonne users.play_mode supprimée.\n";
 }
 $pdo->exec("DELETE FROM activity_logs WHERE type LIKE 'team\\_%'");
+
+// ─── Points dégressifs ────────────────────────────────────────────────────────
+// La valeur d'un challenge baisse au fil des résolutions, et les points gagnés
+// sont figés à la résolution : ils sont donc stockés sur la soumission. Sur une
+// base créée avant ce changement, les anciennes soumissions reçoivent la valeur
+// de départ de leur challenge.
+$hasAwarded = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'submissions'
+       AND column_name = 'points_awarded'"
+)->fetchColumn();
+if (!$hasAwarded) {
+    $pdo->exec(
+        "ALTER TABLE submissions
+         ADD COLUMN points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+         COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif'
+         AFTER challenge_id"
+    );
+    $filled = $pdo->exec(
+        "UPDATE submissions s JOIN challenges c ON c.id = s.challenge_id
+         SET s.points_awarded = c.points"
+    );
+    echo "[init] Colonne submissions.points_awarded ajoutée ($filled soumissions reprises).\n";
+}
 
 echo "[init] Initialisation terminée.\n";
 

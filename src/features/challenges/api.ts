@@ -9,6 +9,8 @@ function normalizeChallenge(raw: Record<string, unknown>): Challenge {
     title: String(raw.title),
     category: raw.category as CategoryType,
     points: Number(raw.points),
+    currentPoints: Number(raw.currentPoints ?? raw.points),
+    solves: Number(raw.solves ?? 0),
     description: String(raw.description),
     files: Array.isArray(raw.files)
       ? toRawArray(raw.files).map((f) => ({
