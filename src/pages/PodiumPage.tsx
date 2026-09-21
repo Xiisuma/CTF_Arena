@@ -15,17 +15,18 @@ import { useAuth } from "../features/auth/AuthContext";
 import { useCTFState } from "../features/ctf/useCTFState";
 
 // Ordre d'affichage (top → bottom). La révélation se fait dans l'ordre inverse
-// (de bas en haut) : index 4 révélé en 1er, index 0 révélé en dernier.
+// (de bas en haut) : le dernier index est révélé en 1er, l'index 0 en dernier.
 const SLOT_LABELS = [
-  { rank: 1, label: "1er du classement Solo",              emoji: "🥇" },
-  { rank: 2, label: "2ème du classement Solo",             emoji: "🥈" },
-  { rank: 3, label: "3ème du classement Solo",             emoji: "🥉" },
-  { rank: 4, label: "1ère équipe — Classement Multiplayer", emoji: "🛡️" },
-  { rank: 5, label: "Joueur avec le plus de flags",        emoji: "🏴" },
+  { rank: 1, label: "1er du classement",            emoji: "🥇" },
+  { rank: 2, label: "2ème du classement",           emoji: "🥈" },
+  { rank: 3, label: "3ème du classement",           emoji: "🥉" },
+  { rank: 4, label: "Joueur avec le plus de flags", emoji: "🏴" },
+  { rank: 5, label: "Joueur avec le plus de succès", emoji: "🎖️" },
 ];
+const SLOT_COUNT = SLOT_LABELS.length;
 
 function buildSlots(data: PodiumData): Array<{ rank: number; label: string; emoji: string; name: string; detail: string } | null> {
-  // Ordre : 1er → 2e → 3e → team → mostFlags
+  // Ordre : 1er → 2e → 3e → mostFlags → mostAchievements
   return [
     data.soloTop3[0]
       ? { ...SLOT_LABELS[0], name: data.soloTop3[0].username, detail: `${data.soloTop3[0].totalPoints} pts · ${data.soloTop3[0].flagsFound} flags` }
@@ -36,11 +37,15 @@ function buildSlots(data: PodiumData): Array<{ rank: number; label: string; emoj
     data.soloTop3[2]
       ? { ...SLOT_LABELS[2], name: data.soloTop3[2].username, detail: `${data.soloTop3[2].totalPoints} pts · ${data.soloTop3[2].flagsFound} flags` }
       : null,
-    data.teamFirst
-      ? { ...SLOT_LABELS[3], name: `${data.teamFirst.emoji} ${data.teamFirst.teamName}`, detail: `${data.teamFirst.totalPoints} pts · ${data.teamFirst.flagsFound} flags · ${data.teamFirst.memberCount} membres` }
-      : null,
     data.mostFlags
-      ? { ...SLOT_LABELS[4], name: data.mostFlags.username, detail: `${data.mostFlags.flagsFound} flags au total` }
+      ? { ...SLOT_LABELS[3], name: data.mostFlags.username, detail: `${data.mostFlags.flagsFound} flags au total` }
+      : null,
+    data.mostAchievements
+      ? {
+          ...SLOT_LABELS[4],
+          name: data.mostAchievements.username,
+          detail: `${data.mostAchievements.count} succès débloqué${data.mostAchievements.count > 1 ? "s" : ""}`,
+        }
       : null,
   ];
 }
@@ -63,7 +68,7 @@ export default function PodiumPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleReveal() {
-    if (revealing || revealed >= 5) return;
+    if (revealing || revealed >= SLOT_COUNT) return;
     setRevealing(true);
     try {
       await setCTFState("podium_revealed", String(revealed + 1));
@@ -82,7 +87,7 @@ export default function PodiumPage() {
   }
 
   const slots = podium ? buildSlots(podium) : [];
-  const total  = slots.length; // 5
+  const total  = slots.length;
 
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
@@ -131,7 +136,7 @@ export default function PodiumPage() {
         })}
       </div>
 
-      {user?.isAdmin && revealed < 5 && (
+      {user?.isAdmin && revealed < SLOT_COUNT && (
         <div className="flex justify-center">
           <button
             onClick={handleReveal}
@@ -146,13 +151,13 @@ export default function PodiumPage() {
                 En cours…
               </span>
             ) : revealed === 0 ? "✨ Commencer la révélation"
-              : revealed === 4 ? "🥇 Révéler le 1er !"
-              : `✨ Révéler le suivant (${revealed + 1}/5)`}
+              : revealed === SLOT_COUNT - 1 ? "🥇 Révéler le 1er !"
+              : `✨ Révéler le suivant (${revealed + 1}/${SLOT_COUNT})`}
           </button>
         </div>
       )}
 
-      {revealed >= 5 && (
+      {revealed >= SLOT_COUNT && (
         <div className="text-center py-4 text-2xl animate-bounce">🎊 🎊 🎊</div>
       )}
     </div>

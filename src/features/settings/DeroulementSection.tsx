@@ -127,7 +127,7 @@ export function DeroulementSection() {
       {/* 2. Brouillage */}
       <ControlCard
         title="🔀 Brouillage (phase finale)"
-        description="Masque les classements et démarre un compte à rebours de 15 min. Après 15 min, les énigmes sont progressivement fermées (3 min de grâce). Action irréversible."
+        description="Masque les classements et démarre un compte à rebours de 15 min. Après 15 min, les challenges sont progressivement fermés (3 min de grâce). Action irréversible."
         buttonLabel={scrambleActive ? "Brouillage actif" : "🔀 Démarrer le brouillage"}
         buttonDanger
         buttonDisabled={!ctfState.gameStarted || scrambleActive}

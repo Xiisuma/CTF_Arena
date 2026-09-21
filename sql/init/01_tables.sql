@@ -27,8 +27,13 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255)     NOT NULL,
     age           TINYINT UNSIGNED NULL,
     gender        ENUM('male','female','other') NULL,
-    play_mode     ENUM('solo','multiplayer') NOT NULL DEFAULT 'solo',
     is_admin      TINYINT(1)       NOT NULL DEFAULT 0,
+    is_author     TINYINT(1)       NOT NULL DEFAULT 0
+                  COMMENT 'Peut créer des challenges et ne gérer que les siens',
+    clean_streak  INT UNSIGNED     NOT NULL DEFAULT 0
+                  COMMENT 'Validations d’affilée sans flag faux (succès Sans faute)',
+    was_bottom_half TINYINT(1)     NOT NULL DEFAULT 0
+                  COMMENT 'A déjà figuré dans la moitié basse du classement (succès Remontada)',
     created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_username UNIQUE (username),
@@ -92,6 +97,7 @@ CREATE TABLE IF NOT EXISTS challenges (
     flag_encrypted  TEXT         NOT NULL COMMENT 'Flag chiffré AES-256-GCM, jamais exposé',
     difficulty_mode ENUM('auto','easy','medium','hard') NOT NULL DEFAULT 'auto',
     difficulty      ENUM('easy','medium','hard') NULL,
+    created_by      INT UNSIGNED NULL COMMENT 'Auteur du challenge (NULL = administrateur)',
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT ck_challenges_points CHECK (points > 0),
@@ -117,8 +123,12 @@ CREATE TABLE IF NOT EXISTS challenge_files (
 
 CREATE TABLE IF NOT EXISTS submissions (
     id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id       INT UNSIGNED NOT NULL,
-    challenge_id  INT UNSIGNED NOT NULL,
+    user_id        INT UNSIGNED NOT NULL,
+    challenge_id   INT UNSIGNED NOT NULL,
+    points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif',
+    wrong_attempts INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Flags erronés tapés sur ce challenge avant de le valider',
     solve_time_ms INT UNSIGNED NULL,
     submitted_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_submissions_user_challenge  UNIQUE  (user_id, challenge_id),
@@ -130,19 +140,21 @@ CREATE TABLE IF NOT EXISTS submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Flags validés — une ligne = un challenge résolu par un joueur.';
 
--- ─── Bonus / Malus ────────────────────────────────────────────────────────────
+-- ─── Essais de flags ──────────────────────────────────────────────────────────
+-- Historique des flags erronés, visible du seul joueur qui les a tapés.
+-- Les essais d'un challenge sont effacés dès qu'il est résolu.
 
-CREATE TABLE IF NOT EXISTS bonus_malus (
-    id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id    INT UNSIGNED NOT NULL,
-    points     INT          NOT NULL,
-    reason     VARCHAR(255) NOT NULL DEFAULT '',
-    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT ck_bonus_malus_points CHECK (points != 0),
-    INDEX idx_bonus_malus_user_id (user_id),
-    CONSTRAINT fk_bonus_malus_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS flag_attempts (
+    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT UNSIGNED NOT NULL,
+    challenge_id INT UNSIGNED NOT NULL,
+    attempt      VARCHAR(255) NOT NULL,
+    submitted_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fa_user_challenge (user_id, challenge_id, submitted_at DESC),
+    CONSTRAINT fk_flag_attempts_users      FOREIGN KEY (user_id)      REFERENCES users(id)      ON DELETE CASCADE,
+    CONSTRAINT fk_flag_attempts_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Ajustements manuels de score (bonus événementiels, pénalités triche).';
+  COMMENT='Flags erronés tentés par un joueur sur un challenge non résolu.';
 
 -- ─── Achievements ─────────────────────────────────────────────────────────────
 
@@ -154,6 +166,12 @@ CREATE TABLE IF NOT EXISTS achievements (
     condition_type     VARCHAR(30)  NOT NULL,
     condition_value    INT          NOT NULL DEFAULT 1,
     condition_category VARCHAR(30)  NULL,
+    points             INT UNSIGNED NOT NULL DEFAULT 0
+                       COMMENT 'Points ajoutés au score du joueur au déblocage',
+    is_hidden          TINYINT(1)   NOT NULL DEFAULT 0
+                       COMMENT 'Succès caché : le nom et la condition ne sont révélés qu’au déblocage',
+    is_repeatable      TINYINT(1)   NOT NULL DEFAULT 0
+                       COMMENT 'Débloquable plusieurs fois, une par contexte (ex. First Blood par challenge)',
     created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Définitions des succès débloquables (trophées).';
@@ -162,8 +180,12 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     id             CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
     user_id        INT UNSIGNED NOT NULL,
     achievement_id CHAR(36)     NOT NULL,
+    context        VARCHAR(100) NOT NULL DEFAULT ''
+                   COMMENT 'Contexte du déblocage (id de challenge pour First Blood)',
+    points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Points gagnés — figés au déblocage',
     unlocked_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_user_achievements        UNIQUE  (user_id, achievement_id),
+    CONSTRAINT uq_user_achievements        UNIQUE  (user_id, achievement_id, context),
     INDEX idx_ua_achievement_id            (achievement_id),
     CONSTRAINT fk_user_achievements_users        FOREIGN KEY (user_id)        REFERENCES users(id)        ON DELETE CASCADE,
     CONSTRAINT fk_user_achievements_achievements FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE
@@ -184,69 +206,6 @@ CREATE TABLE IF NOT EXISTS friend_requests (
     CONSTRAINT fk_friend_requests_to   FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Demandes d''amitié entre joueurs (pending / accepted / rejected).';
-
--- ─── Teams ────────────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS teams (
-    id          CHAR(32)     PRIMARY KEY,
-    name        VARCHAR(40)  NOT NULL,
-    description VARCHAR(200) NOT NULL DEFAULT '',
-    emoji       VARCHAR(10)  NOT NULL DEFAULT '🛡️',
-    is_public   TINYINT(1)   NOT NULL DEFAULT 1,
-    owner_id    INT UNSIGNED NOT NULL,
-    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT uq_teams_name UNIQUE (name),
-    INDEX idx_teams_owner_id (owner_id),
-    CONSTRAINT fk_teams_users FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Équipes de joueurs — un joueur ne peut appartenir qu''à une seule équipe à la fois.';
-
-CREATE TABLE IF NOT EXISTS team_members (
-    id        CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
-    team_id   CHAR(32)     NOT NULL,
-    user_id   INT UNSIGNED NOT NULL,
-    role      ENUM('owner','admin','member') NOT NULL DEFAULT 'member',
-    joined_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_team_members_user    UNIQUE (user_id),
-    INDEX idx_tm_team_id               (team_id),
-    CONSTRAINT fk_team_members_teams FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    CONSTRAINT fk_team_members_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Membres d''une équipe avec leur rôle (owner / admin / member).';
-
-CREATE TABLE IF NOT EXISTS team_bans (
-    id        CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
-    team_id   CHAR(32)     NOT NULL,
-    user_id   INT UNSIGNED NOT NULL,
-    banned_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_team_bans          UNIQUE (team_id, user_id),
-    INDEX idx_tb_user_id             (user_id),
-    CONSTRAINT fk_team_bans_teams FOREIGN KEY (team_id) REFERENCES teams(id)  ON DELETE CASCADE,
-    CONSTRAINT fk_team_bans_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Joueurs bannis d''une équipe (ne peuvent plus rejoindre cette équipe).';
-
--- ─── Team Submissions ─────────────────────────────────────────────────────────
--- Flags validés au niveau équipe — pour les joueurs en mode multiplayer.
-
-CREATE TABLE IF NOT EXISTS team_submissions (
-    id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    team_id       CHAR(32)     NOT NULL,
-    challenge_id  INT UNSIGNED NOT NULL,
-    solved_by     INT UNSIGNED NOT NULL  COMMENT 'user_id du membre qui a soumis le flag',
-    solve_time_ms INT UNSIGNED NULL,
-    submitted_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_team_submissions_team_challenge UNIQUE (team_id, challenge_id),
-    CONSTRAINT ck_team_submissions_solve_time CHECK (solve_time_ms IS NULL OR solve_time_ms >= 0),
-    INDEX idx_ts_team_id       (team_id),
-    INDEX idx_ts_challenge_id  (challenge_id),
-    INDEX idx_ts_solved_by     (solved_by),
-    CONSTRAINT fk_team_submissions_teams      FOREIGN KEY (team_id)      REFERENCES teams(id)      ON DELETE CASCADE,
-    CONSTRAINT fk_team_submissions_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE,
-    CONSTRAINT fk_team_submissions_users      FOREIGN KEY (solved_by)    REFERENCES users(id)      ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='Flags validés au niveau équipe — une ligne = un challenge résolu par une équipe.';
 
 -- ─── CTF State ────────────────────────────────────────────────────────────────
 -- État global du CTF (clé-valeur) : game_started, scramble_started_at, podium_visible.

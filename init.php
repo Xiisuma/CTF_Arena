@@ -139,6 +139,7 @@ try {
 // recréation : un marqueur posé hors volume suffit à les distinguer.
 $stateRows = [
     ['game_started', '0'],
+    ['game_started_at', ''],
     ['scramble_started_at', ''],
     ['podium_visible', '0'],
     ['podium_revealed', '0'],
@@ -185,6 +186,115 @@ if ($forceReset) {
     echo "[init] État CTF conservé (" . ($freshContainer ? "CTF_RESET_STATE=$resetMode" : "redémarrage du conteneur") . ").\n";
 }
 
+// ─── Points dégressifs ────────────────────────────────────────────────────────
+// La valeur d'un challenge baisse au fil des résolutions, et les points gagnés
+// sont figés à la résolution : ils sont donc stockés sur la soumission. Sur une
+// base créée avant ce changement, les anciennes soumissions reçoivent la valeur
+// de départ de leur challenge.
+$hasAwarded = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'submissions'
+       AND column_name = 'points_awarded'"
+)->fetchColumn();
+if (!$hasAwarded) {
+    $pdo->exec(
+        "ALTER TABLE submissions
+         ADD COLUMN points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+         COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif'
+         AFTER challenge_id"
+    );
+    $filled = $pdo->exec(
+        "UPDATE submissions s JOIN challenges c ON c.id = s.challenge_id
+         SET s.points_awarded = c.points"
+    );
+    echo "[init] Colonne submissions.points_awarded ajoutée ($filled soumissions reprises).\n";
+}
+
+// ─── Rôle auteur ──────────────────────────────────────────────────────────────
+// Un auteur crée des challenges et ne gère que les siens. `created_by` garde la
+// trace du créateur ; NULL signifie « créé par l'administrateur ».
+try {
+    $pdo->exec("ALTER TABLE users ADD COLUMN is_author TINYINT(1) NOT NULL DEFAULT 0");
+    echo "[init] Colonne users.is_author ajoutée.\n";
+} catch (Exception $e) {
+    echo "[init] users.is_author déjà présente.\n";
+}
+try {
+    $pdo->exec("ALTER TABLE challenges ADD COLUMN created_by INT UNSIGNED NULL");
+    $pdo->exec(
+        "ALTER TABLE challenges ADD CONSTRAINT fk_challenges_author
+         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL"
+    );
+    echo "[init] Colonne challenges.created_by ajoutée.\n";
+} catch (Exception $e) {
+    echo "[init] challenges.created_by déjà présente.\n";
+}
+
+// ─── Succès : points, succès cachés, déblocages répétables ────────────────────
+$alters = [
+    "achievements ADD COLUMN points INT UNSIGNED NOT NULL DEFAULT 0",
+    "achievements ADD COLUMN is_hidden TINYINT(1) NOT NULL DEFAULT 0",
+    "achievements ADD COLUMN is_repeatable TINYINT(1) NOT NULL DEFAULT 0",
+    "user_achievements ADD COLUMN context VARCHAR(100) NOT NULL DEFAULT ''",
+    "user_achievements ADD COLUMN points_awarded INT UNSIGNED NOT NULL DEFAULT 0",
+    "submissions ADD COLUMN wrong_attempts INT UNSIGNED NOT NULL DEFAULT 0",
+    "users ADD COLUMN clean_streak INT UNSIGNED NOT NULL DEFAULT 0",
+    "users ADD COLUMN was_bottom_half TINYINT(1) NOT NULL DEFAULT 0",
+];
+foreach ($alters as $alter) {
+    try {
+        $pdo->exec("ALTER TABLE $alter");
+        echo "[init] Colonne ajoutée : $alter\n";
+    } catch (Exception $e) {
+        // Colonne déjà présente
+    }
+}
+// First Blood se débloque une fois par challenge : la clé unique doit inclure le contexte.
+try {
+    $pdo->exec("ALTER TABLE user_achievements DROP INDEX uq_user_achievements");
+    $pdo->exec(
+        "ALTER TABLE user_achievements
+         ADD CONSTRAINT uq_user_achievements UNIQUE (user_id, achievement_id, context)"
+    );
+    echo "[init] Clé unique user_achievements étendue au contexte.\n";
+} catch (Exception $e) {
+    // Déjà au bon format
+}
+
+// Catalogue des succès intégrés : semé depuis api.php pour n'avoir qu'une seule
+// source de vérité (titres, points, succès cachés).
+require_once __DIR__ . '/achievements_catalogue.php';
+$seedStmt = $pdo->prepare(
+    "INSERT INTO achievements
+        (id, title, description, icon, condition_type, condition_value, condition_category,
+         points, is_hidden, is_repeatable, created_at)
+     VALUES (?, ?, ?, ?, 'builtin', 1, NULL, ?, ?, ?, NOW())
+     ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description),
+        icon = VALUES(icon), points = VALUES(points), is_hidden = VALUES(is_hidden),
+        is_repeatable = VALUES(is_repeatable)"
+);
+foreach (builtin_achievements() as $achId => [$icon, $title, $description, $points, $hidden, $repeatable]) {
+    $seedStmt->execute([
+        $achId, $title, $description, $icon, $points, $hidden ? 1 : 0, $repeatable ? 1 : 0,
+    ]);
+}
+echo "[init] Succès intégrés semés : " . count(builtin_achievements()) . ".\n";
+
+// ─── Essais de flags ──────────────────────────────────────────────────────────
+// Historique des flags erronés, visible du seul joueur concerné. Effacé pour un
+// challenge dès qu'il le résout.
+$pdo->exec("CREATE TABLE IF NOT EXISTS flag_attempts (
+    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT UNSIGNED NOT NULL,
+    challenge_id INT UNSIGNED NOT NULL,
+    attempt      VARCHAR(255) NOT NULL,
+    submitted_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fa_user_challenge (user_id, challenge_id, submitted_at DESC),
+    CONSTRAINT fk_flag_attempts_users      FOREIGN KEY (user_id)      REFERENCES users(id)      ON DELETE CASCADE,
+    CONSTRAINT fk_flag_attempts_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+echo "[init] Table flag_attempts vérifiée.\n";
+
 // ─── Vues SQL (idempotentes) ──────────────────────────────────────────────────
 // CREATE OR REPLACE VIEW s'exécute à chaque démarrage du conteneur, ce qui
 // garantit que les vues existent même sur une DB créée avant leur introduction
@@ -193,49 +303,20 @@ $pdo->exec("CREATE OR REPLACE VIEW v_solo_ranking AS
 SELECT
     u.id                                                                    AS user_id,
     u.username,
-    COUNT(s.id)                                                             AS flags_found,
-    COALESCE(SUM(c.points), 0) +
-        COALESCE((SELECT SUM(bm.points) FROM bonus_malus bm WHERE bm.user_id = u.id), 0)
+    (SELECT COUNT(*) FROM submissions s WHERE s.user_id = u.id)             AS flags_found,
+    (SELECT COALESCE(SUM(s.points_awarded), 0) FROM submissions s WHERE s.user_id = u.id)
+      + (SELECT COALESCE(SUM(ua.points_awarded), 0) FROM user_achievements ua WHERE ua.user_id = u.id)
                                                                             AS total_points
 FROM users u
-LEFT JOIN submissions s ON s.user_id = u.id
-LEFT JOIN challenges  c ON c.id      = s.challenge_id
 WHERE u.is_admin = 0
-  AND u.play_mode = 'solo'
-GROUP BY u.id, u.username
-ORDER BY total_points DESC, flags_found DESC");
-
-$pdo->exec("CREATE OR REPLACE VIEW v_team_ranking AS
-SELECT
-    t.id                            AS team_id,
-    t.name                          AS team_name,
-    t.emoji,
-    t.is_public,
-    t.owner_id,
-    t.created_at,
-    COUNT(DISTINCT ts.challenge_id) AS flags_found,
-    COALESCE(SUM(c.points), 0)      AS total_points,
-    COUNT(DISTINCT tm.user_id)      AS member_count
-FROM teams t
-LEFT JOIN team_submissions ts ON ts.team_id     = t.id
-LEFT JOIN challenges        c  ON c.id           = ts.challenge_id
-LEFT JOIN team_members      tm ON tm.team_id     = t.id
-GROUP BY t.id, t.name, t.emoji, t.is_public, t.owner_id, t.created_at
+HAVING flags_found > 0
 ORDER BY total_points DESC, flags_found DESC");
 
 $pdo->exec("CREATE OR REPLACE VIEW v_most_flags AS
 SELECT
     u.id       AS user_id,
     u.username,
-    u.play_mode,
-    CASE
-        WHEN u.play_mode = 'solo' THEN
-            (SELECT COUNT(*) FROM submissions WHERE user_id = u.id)
-        ELSE
-            (SELECT COUNT(*) FROM team_submissions ts
-             JOIN team_members tm ON tm.team_id = ts.team_id
-             WHERE tm.user_id = u.id)
-    END AS flags_found
+    (SELECT COUNT(*) FROM submissions WHERE user_id = u.id) AS flags_found
 FROM users u
 WHERE u.is_admin = 0
 ORDER BY flags_found DESC");
@@ -244,6 +325,45 @@ $pdo->exec("CREATE OR REPLACE VIEW v_ranking AS
 SELECT * FROM v_solo_ranking");
 
 echo "[init] Vues SQL recréées.\n";
+
+// ─── Retrait du bonus/malus ───────────────────────────────────────────────────
+// Les scores ne dépendent plus que des flags. Sur une base créée avant ce
+// retrait, la table et ses entrées de journal sont supprimées ; les vues
+// ci-dessus ne la référencent plus, le DROP passe donc sans erreur.
+$pdo->exec("DROP TABLE IF EXISTS bonus_malus");
+$pdo->exec("DELETE FROM activity_logs WHERE type IN ('bonus_added', 'malus_added')");
+
+// ─── Retrait du système d'équipes ─────────────────────────────────────────────
+// Tous les joueurs jouent désormais seuls. Sur une base créée avant ce retrait :
+//   1. les flags validés en équipe sont rendus au joueur qui les a trouvés,
+//      pour qu'il garde ses points ;
+//   2. la vue, les tables d'équipe et la colonne play_mode sont supprimées,
+//      ainsi que les entrées de journal liées aux équipes.
+// Chaque étape est idempotente : un redémarrage ne refait rien.
+$hasTeamSubmissions = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'team_submissions'"
+)->fetchColumn();
+if ($hasTeamSubmissions) {
+    $moved = $pdo->exec(
+        "INSERT IGNORE INTO submissions
+             (user_id, challenge_id, points_awarded, solve_time_ms, submitted_at)
+         SELECT ts.solved_by, ts.challenge_id, c.points, ts.solve_time_ms, ts.submitted_at
+         FROM team_submissions ts JOIN challenges c ON c.id = ts.challenge_id"
+    );
+    echo "[init] Flags d'équipe rendus à leurs auteurs : $moved.\n";
+}
+$pdo->exec("DROP VIEW IF EXISTS v_team_ranking");
+$pdo->exec("DROP TABLE IF EXISTS team_submissions, team_bans, team_members, teams");
+$hasPlayMode = (bool) $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.columns
+     WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'play_mode'"
+)->fetchColumn();
+if ($hasPlayMode) {
+    $pdo->exec("ALTER TABLE users DROP COLUMN play_mode");
+    echo "[init] Colonne users.play_mode supprimée.\n";
+}
+$pdo->exec("DELETE FROM activity_logs WHERE type LIKE 'team\\_%'");
 
 echo "[init] Initialisation terminée.\n";
 

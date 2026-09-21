@@ -203,3 +203,18 @@ body {
 .glow-theme {
   background: radial-gradient(circle, var(--glow-color) 0%, transparent 70%);
 }
+
+/* ============================================ */
+/* LOGO — bascule selon le thème                */
+/* ============================================ */
+/* Seule la signature change de couleur : la marque garde sa plaque sombre.
+   Les thèmes événementiels sont tous sombres, donc seul "light" bascule. */
+.brand-logo-light {
+  display: none;
+}
+[data-theme="light"] .brand-logo-dark {
+  display: none;
+}
+[data-theme="light"] .brand-logo-light {
+  display: block;
+}

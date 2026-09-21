@@ -23,6 +23,11 @@ export function AchievementCard({
           : "border-primary bg-card opacity-50 grayscale"
       }`}
     >
+      {achievement.points > 0 && (
+        <span className="absolute right-3 top-3 rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+          +{achievement.points} pts
+        </span>
+      )}
       <div className="flex items-start gap-4">
         <div
           className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-3xl ${
@@ -37,11 +42,23 @@ export function AchievementCard({
           </h3>
           <p className="mt-0.5 text-sm text-tertiary">{achievement.description}</p>
           <div className="mt-2 text-xs text-tertiary">
-            {CONDITION_ICONS[achievement.condition]} {CONDITION_LABELS[achievement.condition]}
-            {!NO_VALUE_CONDITIONS.includes(achievement.condition) && (
-              <> — seuil : <strong>{achievement.conditionValue}</strong></>
+            {achievement.isLocked ? (
+              <>🔒 Succès caché — sa condition reste secrète</>
+            ) : achievement.condition === "builtin" ? (
+              <>
+                🎖️ Succès intégré
+                {achievement.isHidden && <> · révélé une fois débloqué</>}
+                {achievement.isRepeatable && <> · débloquable plusieurs fois</>}
+              </>
+            ) : (
+              <>
+                {CONDITION_ICONS[achievement.condition]} {CONDITION_LABELS[achievement.condition]}
+                {!NO_VALUE_CONDITIONS.includes(achievement.condition) && (
+                  <> — seuil : <strong>{achievement.conditionValue}</strong></>
+                )}
+                {achievement.conditionCategory && <> ({achievement.conditionCategory})</>}
+              </>
             )}
-            {achievement.conditionCategory && <> ({achievement.conditionCategory})</>}
           </div>
           {unlocked && unlockedAt && (
             <p className="mt-1.5 text-xs font-semibold text-amber-400">

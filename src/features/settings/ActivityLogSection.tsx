@@ -18,15 +18,9 @@ const TYPE_LABEL: Record<string, string> = {
   challenge_deleted:    "Challenge supprimé",
   achievement_unlocked: "Succès débloqué 🎖️",
   ctf_state_change:     "État CTF modifié ⚙️",
-  team_join:            "Rejoint une team",
-  team_leave:           "Quitté une team",
-  team_kick:            "Membre expulsé",
-  team_promote:         "Membre promu ⭐",
-  team_demote:          "Membre rétrogradé",
   friend_request_sent:  "Demande d'ami envoyée",
   player_deleted:       "Joueur supprimé 🗑️",
-  bonus_added:          "+pts bonus",
-  malus_added:          "-pts malus",
+  author_role_changed:  "Rôle auteur modifié ✍️",
   progress_reset:       "Progression réinitialisée",
 };
 
@@ -35,8 +29,6 @@ const TYPE_BADGE: Record<string, string> = {
   login_success:        "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   flag_correct:         "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
   achievement_unlocked: "bg-amber-400/20  text-amber-300  border-amber-400/30",
-  team_join:            "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  team_promote:         "bg-sky-500/20    text-sky-300    border-sky-500/30",
   register_fail:        "bg-rose-500/20   text-rose-300   border-rose-500/30",
   login_fail:           "bg-rose-500/20   text-rose-300   border-rose-500/30",
   flag_wrong:           "bg-rose-500/20   text-rose-300   border-rose-500/30",
@@ -45,10 +37,7 @@ const TYPE_BADGE: Record<string, string> = {
   challenge_deleted:    "bg-rose-500/20   text-rose-300   border-rose-500/30",
   ctf_state_change:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
   player_deleted:       "bg-rose-500/20   text-rose-300   border-rose-500/30",
-  bonus_added:          "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  malus_added:          "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  team_kick:            "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  team_demote:          "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  author_role_changed:  "bg-violet-500/20 text-violet-300 border-violet-500/30",
 };
 const DEFAULT_BADGE = "bg-blue-500/20 text-blue-300 border-blue-500/30";
 
@@ -208,7 +197,7 @@ export function ActivityLogSection() {
       )}
       {activeTab === "all" && (
         <p className="text-xs text-tertiary font-mono">
-          📄 /var/log/ctf_arena/all.log · auth.log · gameplay.log · teams.log · social.log · admin.log
+          📄 /var/log/ctf_arena/all.log · auth.log · gameplay.log · social.log · admin.log
         </p>
       )}
 

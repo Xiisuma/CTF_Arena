@@ -2,7 +2,7 @@
 {
   "name": "ctf-arena-download",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.5.4",
   "type": "module",
   "scripts": {
     "dev": "vite",

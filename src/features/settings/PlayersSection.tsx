@@ -6,9 +6,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CATEGORIES } from "../categories/store";
 import {
-  addBonusPoints,
-  addMalusPoints,
   deleteUser,
+  setAuthorRole,
   evaluateAchievements,
   getAchievements,
   getChallenges,
@@ -145,8 +144,15 @@ export function PlayersSection() {
                     {player.username.slice(0, 1).toUpperCase()}
                   </div>
                   <div>
-                    <h2 className="font-bold text-primary">{player.username}</h2>
-                    <p className="text-xs text-tertiary">{player.points} pts · {player.solved} énigme(s)</p>
+                    <h2 className="font-bold text-primary">
+                      {player.username}
+                      {player.isAuthor && (
+                        <span className="ml-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-300">
+                          ✍️ Auteur
+                        </span>
+                      )}
+                    </h2>
+                    <p className="text-xs text-tertiary">{player.points} pts · {player.solved} challenge(s)</p>
                   </div>
                 </div>
                 <span className={`text-tertiary transition-transform duration-200 ${opened ? "rotate-180" : ""}`}>▼</span>
@@ -155,12 +161,14 @@ export function PlayersSection() {
               {opened && (
                 <div className="space-y-4 px-5 pb-5">
                   <div className="flex flex-wrap gap-2">
-                    <ActionButton label="+25 pts (Bonus)" color="emerald" onClick={async () => {
-                      await addBonusPoints(player.id, 25); forceRefresh();
-                    }} />
-                    <ActionButton label="-25 pts (Malus)" color="orange" onClick={async () => {
-                      await addMalusPoints(player.id, 25); forceRefresh();
-                    }} />
+                    <ActionButton
+                      label={player.isAuthor ? "Retirer le rôle auteur" : "Donner le rôle auteur"}
+                      color="violet"
+                      onClick={async () => {
+                        await setAuthorRole(player.id, !player.isAuthor);
+                        forceRefresh();
+                      }}
+                    />
                     <ActionButton label="Réinitialiser" color="amber" onClick={async () => {
                       requestConfirm({
                         title: "Réinitialiser le joueur",

@@ -24,8 +24,9 @@ export interface AuthUser {
   email: string | null;
   age: number | null;
   gender: "male" | "female" | "other" | null;
-  playMode: 'solo' | 'multiplayer';
   isAdmin: boolean;
+  /** Peut créer des challenges et ne gérer que les siens. */
+  isAuthor: boolean;
   avatarEmoji: string;
   bio: string;
   // password n'est jamais renvoyé par l'API — ne pas l'inclure dans le type client
@@ -38,7 +39,6 @@ interface RegisterPayload {
   password: string;
   age: number;
   gender: "male" | "female" | "other";
-  playMode: 'solo' | 'multiplayer';
 }
 
 interface AuthContextValue {
@@ -50,6 +50,8 @@ interface AuthContextValue {
   forgotPassword: (email: string) => Promise<string>;
   resetPassword: (token: string, password: string) => Promise<string | null>;
   validateResetToken: (token: string) => Promise<boolean>;
+  /** Recharge l'utilisateur depuis l'API (après modification du profil). */
+  refreshUser: () => Promise<void>;
 }
 
 // ─── URL de base ──────────────────────────────────────────────────────────────
@@ -101,8 +103,7 @@ interface RawApiUser {
   age?: number | null;
   gender?: string | null;
   isAdmin?: boolean;
-  playMode?: string;
-  play_mode?: string;
+  isAuthor?: boolean;
   avatarEmoji?: string;
   avatar_emoji?: string;
   bio?: string;
@@ -115,8 +116,8 @@ function normalizeUser(raw: RawApiUser): AuthUser {
     email: raw.email ?? null,
     age: raw.age ?? null,
     gender: (raw.gender as AuthUser["gender"]) ?? null,
-    playMode: (raw.playMode ?? raw.play_mode ?? 'solo') as 'solo' | 'multiplayer',
     isAdmin: Boolean(raw.isAdmin),
+    isAuthor: Boolean(raw.isAuthor),
     avatarEmoji: (raw.avatarEmoji ?? raw.avatar_emoji ?? '🎯'),
     bio: raw.bio ?? '',
     createdAt: new Date().toISOString(),
@@ -133,22 +134,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restauration de session au montage
-  useEffect(() => {
-    const restore = async () => {
-      try {
-        const data = await apiFetch("me", { method: "GET" });
-        if (data.ok && data.user) {
-          setUser(normalizeUser(data.user as RawApiUser));
-        }
-      } catch {
-        // Pas de session active
-      } finally {
-        setLoading(false);
+  // Lecture de la session courante — au montage, puis après toute modification
+  // du profil : sans ça, l'avatar de la barre de navigation reste celui d'avant.
+  const refreshUser = useCallback(async () => {
+    try {
+      const data = await apiFetch("me", { method: "GET" });
+      if (data.ok && data.user) {
+        setUser(normalizeUser(data.user as RawApiUser));
       }
-    };
-    restore();
+    } catch {
+      // Pas de session active
+    }
   }, []);
+
+  useEffect(() => {
+    refreshUser().finally(() => setLoading(false));
+  }, [refreshUser]);
 
   const login = useCallback(
     async (identifier: string, password: string): Promise<string | null> => {
@@ -172,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const data = await apiFetch("register", {
           method: "POST",
-          body: JSON.stringify({ ...payload, play_mode: payload.playMode }),
+          body: JSON.stringify(payload),
         });
         if (!data.ok) return (data.error as string) ?? "Erreur d'inscription";
         setUser(normalizeUser(data.user as RawApiUser));
@@ -248,6 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         forgotPassword,
         resetPassword,
         validateResetToken,
+        refreshUser,
       }}
     >
       {children}

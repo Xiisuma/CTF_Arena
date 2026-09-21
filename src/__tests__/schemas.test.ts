@@ -50,6 +50,7 @@ describe("validate()", () => {
 describe("ChallengeSchema", () => {
   const valid = {
     id: "c1", title: "SQLi 101", category: "web", points: 100,
+    currentPoints: 95, solves: 2, canEdit: false, mine: false, authorLocked: false,
     description: "Trouvez le flag", files: [], flag: "CTF{test}",
     createdAt: "2026-01-01",
   };
@@ -112,6 +113,7 @@ describe("AchievementSchema", () => {
   const valid = {
     id: "a1", title: "Premier Sang", description: "Premier flag du CTF",
     icon: "🩸", condition: "first_blood", conditionValue: 1,
+    points: 25, isHidden: false, isLocked: false, isRepeatable: false,
     createdAt: "2026-01-01",
   };
 

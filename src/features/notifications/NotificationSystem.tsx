@@ -23,12 +23,9 @@ import {
   getAllUserAchievements,
   getAchievements,
   getFriends,
-  getTeamMembers,
   getUserById,
   getPendingRequestsReceived,
-  getUserTeam,
 } from "../../db";
-import { getUserTeamRole } from "../teams/api";
 import { useAuth } from "../auth/AuthContext";
 import { useChronoContext } from "../../shared/hooks/ChronoContext";
 import type { AppNotification, NotifBox, NotifType } from "../../types";
@@ -42,10 +39,6 @@ export const NOTIF_BOX_MAP: Record<NotifType, NotifBox> = {
   friend_flag:        "amis",
   friend_achievement: "amis",
   friend_request:     "amis",
-  team_flag:          "team",
-  team_achievement:   "team",
-  team_join:          "team",
-  team_role_change:   "team",
 };
 
 // ─── Context ───────────────────────────────────────────────────────────────────
@@ -84,9 +77,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const seenFlagIds = useRef<Set<string>>(new Set());
   const seenAchievementIds = useRef<Set<string>>(new Set());
   const seenRank1UserId = useRef<string>("");
-  const seenJoinKeys = useRef<Set<string>>(new Set());
   const seenFriendRequestIds = useRef<Set<string>>(new Set());
-  const prevRoleRef = useRef<string | null>(null);
   const initialized = useRef(false);
   const prevChronoRunning = useRef(isChronoRunning);
 
@@ -95,7 +86,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const unreadPerBox: Record<NotifBox, number> = {
     perso: notifications.filter((n) => !n.read && NOTIF_BOX_MAP[n.type] === "perso").length,
     amis:  notifications.filter((n) => !n.read && NOTIF_BOX_MAP[n.type] === "amis").length,
-    team:  notifications.filter((n) => !n.read && NOTIF_BOX_MAP[n.type] === "team").length,
   };
 
   // ── Popup management ────────────────────────────────────────────────────────
@@ -157,21 +147,12 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
       const friendRequests = isAdmin ? [] : await getPendingRequestsReceived(user.id);
       const friends = isAdmin ? [] : await getFriends(user.id);
-      const myTeam = isAdmin ? null : await getUserTeam(user.id);
 
       const friendIds = new Set(
         friends.map((f) =>
           f.fromUserId === user.id ? f.toUserId : f.fromUserId
         )
       );
-
-      const teamMemberIds: Set<string> = new Set();
-      if (myTeam) {
-        const members = await getTeamMembers(myTeam.id);
-        for (const m of members) {
-          if (m.id !== user.id) teamMemberIds.add(m.id);
-        }
-      }
 
       // ── Flags ──
       for (const flag of allFlags) {
@@ -180,21 +161,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         seenFlagIds.current.add(flag.id);
         if (!initialized.current) continue;
 
-        const isFriend = friendIds.has(flag.userId);
-        const isTeamMember = teamMemberIds.has(flag.userId);
-        if (!isAdmin && !isFriend && !isTeamMember) continue;
+        if (!isAdmin && !friendIds.has(flag.userId)) continue;
 
         const flagUser = await getUserById(flag.userId);
         const username = flagUser?.username ?? flag.username;
-        const type: NotifType =
-          isAdmin
-            ? isTeamMember ? "team_flag" : "friend_flag"
-            : isFriend ? "friend_flag" : "team_flag";
 
         addNotif({
-          type,
-          icon: type === "team_flag" ? "🛡️" : "🏴",
-          message: `${username} a complété l'énigme "${flag.challengeTitle}"`,
+          type: "friend_flag",
+          icon: "🏴",
+          message: `${username} a complété le challenge "${flag.challengeTitle}"`,
           actorUsername: username,
           targetName: flag.challengeTitle,
         });
@@ -207,22 +182,15 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         seenAchievementIds.current.add(ua.id);
         if (!initialized.current) continue;
 
-        const isFriend = friendIds.has(ua.userId);
-        const isTeamMember = teamMemberIds.has(ua.userId);
-        if (!isAdmin && !isFriend && !isTeamMember) continue;
+        if (!isAdmin && !friendIds.has(ua.userId)) continue;
 
         const achUser = await getUserById(ua.userId);
         const username = achUser?.username ?? ua.userId;
         const achievement = achievements.find((a) => a.id === ua.achievementId);
         if (!achievement) continue;
 
-        const type: NotifType =
-          isAdmin
-            ? isTeamMember ? "team_achievement" : "friend_achievement"
-            : isFriend ? "friend_achievement" : "team_achievement";
-
         addNotif({
-          type,
+          type: "friend_achievement",
           icon: achievement.icon,
           message: `${username} a débloqué le succès "${achievement.title}"`,
           actorUsername: username,
@@ -248,42 +216,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           });
         }
       }
-
-      // ── Nouveaux membres de la team ──
-      if (myTeam && !isAdmin) {
-        const members = await getTeamMembers(myTeam.id);
-        for (const member of members) {
-          if (member.id === user.id) continue;
-          const joinKey = `${myTeam.id}:${member.id}`;
-          if (seenJoinKeys.current.has(joinKey)) continue;
-          seenJoinKeys.current.add(joinKey);
-          addNotif({
-            type: "team_join",
-            icon: "👋",
-            message: `${member.username} a rejoint votre team "${myTeam.name}"`,
-            actorUsername: member.username,
-            targetName: myTeam.name,
-          });
-        }
-      }
-
-      // ── Changement de rôle ──
-      if (myTeam && !isAdmin) {
-        const currentRole = await getUserTeamRole(user.id, myTeam.id);
-        if (currentRole !== null) {
-          const prevRole = prevRoleRef.current;
-          if (prevRole !== null && prevRole !== currentRole) {
-            addNotif({
-              type: "team_role_change",
-              icon: currentRole === "admin" ? "⭐" : "👤",
-              message: `Votre rôle dans "${myTeam.name}" est maintenant : ${currentRole}`,
-              actorUsername: user.username,
-              targetName: myTeam.name,
-            });
-          }
-          prevRoleRef.current = currentRole;
-        }
-      }
     } catch (e) {
       console.error("[NotifSystem] Erreur polling :", e);
     }
@@ -302,13 +234,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       for (const ua of allUserAchievements) seenAchievementIds.current.add(ua.id);
 
       if (!user.isAdmin) {
-        const myTeam = await getUserTeam(user.id);
-        if (myTeam) {
-          const members = await getTeamMembers(myTeam.id);
-          for (const member of members) {
-            seenJoinKeys.current.add(`${myTeam.id}:${member.id}`);
-          }
-        }
         const pending = await getPendingRequestsReceived(user.id);
         for (const req of pending) seenFriendRequestIds.current.add(req.id);
       }
@@ -330,10 +255,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     initialized.current = false;
     seenFlagIds.current = new Set();
     seenAchievementIds.current = new Set();
-    seenJoinKeys.current = new Set();
     seenFriendRequestIds.current = new Set();
     seenRank1UserId.current = "";
-    prevRoleRef.current = null;
 
     const t = setTimeout(initialize, 1000);
     const interval = setInterval(checkForNewEvents, 300000);

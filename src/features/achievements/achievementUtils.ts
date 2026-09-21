@@ -1,6 +1,8 @@
 
 import type { AchievementConditionType } from "../../types";
 
+export const BUILTIN_CONDITION_LABEL = "Succès intégré";
+
 export const CONDITION_LABELS: Record<AchievementConditionType, string> = {
   flags_count:      "Nombre de flags total",
   points_total:     "Score total",
@@ -13,17 +15,20 @@ export const CONDITION_LABELS: Record<AchievementConditionType, string> = {
   top3:             "Top 3 du classement",
   all_challenges:   "Tous les challenges résolus",
   manual:           "Attribution manuelle",
+  builtin:          "Succès intégré",
+  hidden:           "Succès caché",
 };
 
 export const CONDITION_ICONS: Record<AchievementConditionType, string> = {
   flags_count: "🏴", points_total: "⭐", category_flags: "🗂️",
   first_blood: "🩸", speed_runner: "⚡", category_perfect: "💎",
   night_owl: "🦉", all_categories: "🌐", top3: "🏆",
-  all_challenges: "🎖️", manual: "👑",
+  all_challenges: "🎖️", manual: "👑", builtin: "🎖️", hidden: "🔒",
 };
 
 export const NO_VALUE_CONDITIONS: AchievementConditionType[] = [
   "manual", "first_blood", "night_owl", "all_categories", "all_challenges", "category_perfect",
+  "builtin", "hidden",
 ];
 
 export const DEFAULT_ICONS = [

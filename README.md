@@ -8,7 +8,7 @@
 
 <img src="public/logo.png" alt="CTF Arena" width="420">
 
-![Version](https://img.shields.io/badge/version-4.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.5.4-blue.svg)
 ![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1-38B2AC.svg?logo=tailwind-css)
@@ -50,7 +50,6 @@
 - **Flags chiffrés** — AES-256-GCM côté serveur, le flag en clair n'est jamais exposé
 - **Déploiement one-command** — `docker compose up -d` lance les 3 services (DB, backend, frontend)
 - **Catégories dynamiques** — CRUD complet depuis l'admin, tri personnalisé, descriptions Markdown
-- **Gestion des équipes** — création, invitation, rôles (owner / admin / member), bannissement
 - **Achievements automatiques** — 11 conditions évaluées à chaque validation de flag
 - **2 thèmes** — Violet (sombre) et Clair, persistés en `localStorage`, sans rechargement
 
@@ -236,8 +235,7 @@ ctf-arena/
 │   ├── 📂 components/
 │   │   ├── Layout.tsx               # Navigation, thème, rang
 │   │   ├── ErrorBoundary.tsx        # Error boundary par route
-│   │   ├── CategoriesSection.tsx    # Section catégories dépliables
-│   │   └── TeamSelector.tsx         # Sélecteur d'équipe
+│   │   └── CategoriesSection.tsx    # Section catégories dépliables
 │   │
 │   ├── 📂 context/
 │   │   ├── AuthContext.tsx          # Auth (session API, zéro localStorage)
@@ -248,8 +246,8 @@ ctf-arena/
 │   ├── 📂 pages/
 │   │   ├── HomePage.tsx             # Challenges par catégorie + admin
 │   │   ├── LoginPage.tsx            # Connexion / Inscription
-│   │   ├── RankingPage.tsx          # Classement joueurs + équipes (aria-live)
-│   │   ├── ProfilePage.tsx          # Profil : flags, stats, amis, team
+│   │   ├── RankingPage.tsx          # Classement des joueurs (aria-live)
+│   │   ├── ProfilePage.tsx          # Profil : flags, stats, amis
 │   │   ├── AchievementsPage.tsx     # Achievements + gestion admin
 │   │   ├── GuidePage.tsx            # Guide des catégories
 │   │   ├── NotificationsPage.tsx    # Notifications
@@ -309,19 +307,29 @@ Pour repartir d'une base propre : `docker compose down -v && docker compose up`
 | `challenges` | Énigmes (flag chiffré AES-256-GCM, difficulté auto/manuelle) |
 | `challenge_files` | Fichiers attachés aux challenges |
 | `submissions` | Soumissions réussies — pas de dénormalisation, JOIN challenges pour les points |
-| `bonus_malus` | Points bonus/malus attribués par l'admin |
 | `achievements` | Définitions des succès (11 types de conditions) |
 | `user_achievements` | Succès débloqués par joueur |
 | `friend_requests` | Demandes d'amis (pending / accepted / rejected) |
-| `teams` | Équipes (owner, visibilité, emoji) |
-| `team_members` | Membres avec rôle (owner / admin / member) |
-| `team_bans` | Bannissements d'équipe |
 | `password_resets` | Tokens de reset (HMAC-SHA256, TTL 1h) |
 | `rate_limits` | Anti-brute-force par IP (window_start DATETIME) |
 
 ### Vue `v_ranking`
 
-Classement calculé automatiquement : `total_points = SUM(c.points via JOIN challenges) + SUM(bonus_malus.points)`, trié par points puis par nombre de flags.
+Classement calculé automatiquement : `total_points = SUM(submissions.points_awarded)`, trié par points puis par nombre de flags. Un joueur n'apparaît qu'à partir de son premier flag validé.
+
+### Points dégressifs
+
+La valeur d'un challenge baisse à chaque résolution : lentement sur les premières, de plus en plus vite ensuite, jusqu'à un plancher.
+
+```
+points(n) = P − (P − plancher) × ((n − 1) / D)²     borné au plancher
+```
+
+`n` est le rang de la résolution (1 = premier à résoudre), `P` la valeur de départ saisie par l'admin, `D` la variable `SCORING_DECAY_SOLVES` (12 par défaut) et le plancher vaut `SCORING_FLOOR_PERCENT` % de `P` (25 % par défaut).
+
+Exemple pour un challenge à 100 points : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+
+Les points sont **figés à la résolution** et stockés dans `submissions.points_awarded` : le premier garde sa pleine valeur même quand d'autres résolvent après lui. Le multiplicateur d'événement s'applique sur la valeur du moment.
 
 ### Difficulté des challenges
 
@@ -377,7 +385,6 @@ Toutes les requêtes passent par `POST /api.php` (ou `GET` pour les lectures) av
 | Action | Description |
 |--------|-------------|
 | `get_ranking` | Classement individuel (vue `v_ranking`) |
-| `get_team_ranking` | Classement des équipes |
 | `get_user_stats` | Stats détaillées d'un joueur |
 
 ### Achievements
@@ -391,7 +398,7 @@ Toutes les requêtes passent par `POST /api.php` (ou `GET` pour les lectures) av
 | `set_achievement` | Admin | Attribution/révocation manuelle |
 | `reevaluate_achievements` | Admin | Réévaluation globale |
 
-### Social (amis, équipes)
+### Social (amis)
 
 | Action | Description |
 |--------|-------------|
@@ -399,20 +406,13 @@ Toutes les requêtes passent par `POST /api.php` (ou `GET` pour les lectures) av
 | `respond_friend_request` | Accepter / Refuser |
 | `remove_friend` | Retirer un ami |
 | `get_friends` | Liste des amis |
-| `create_team` | Créer une équipe |
-| `join_team` | Rejoindre une équipe |
-| `leave_team` | Quitter une équipe |
-| `kick_member` / `ban_member` | Gérer les membres (owner/admin) |
-| `promote_member` / `demote_member` | Changer le rôle |
-| `update_team` / `delete_team` | Gérer l'équipe |
 
 ### Admin — gestion joueurs
 
 | Action | Description |
 |--------|-------------|
 | `get_players` | Liste de tous les joueurs |
-| `add_bonus` / `add_malus` | ±25 pts |
-| `reset_user` | Effacer flags + bonus/malus |
+| `reset_user_progress` | Effacer flags et succès |
 | `delete_user` | Supprimer le compte |
 | `set_challenge_solved` | Cocher/décocher manuellement |
 
@@ -484,14 +484,13 @@ Chaque challenge dispose d'un chrono indépendant : **▶ Start / ⏸ Pause / Re
 - **Mes Flags** — historique avec temps, points, catégorie
 - **Mes Stats** — graphiques SVG (barres, radar, scatter, comparaison)
 - **Amis** — liste, recherche, demandes, modale profil ami complète
-- **Ma Team** — gestion de l'équipe, classement interne
+- **Mon Profil** — avatar et bio
 
-### Modale profil ami — 4 onglets
+### Modale profil ami — 3 onglets
 
 - **Comparaison** — face-à-face : points, flags, catégories, rang
 - **Stats** — tous les graphiques de l'ami
 - **Amis** — liste des amis de l'ami
-- **Team** — équipe de l'ami avec classement interne
 
 ### 2 thèmes
 
@@ -658,7 +657,7 @@ Le dossier `backups/` est ignoré par git : le stocker ailleurs que sur la machi
 
 ### Vérification de bout en bout
 
-`scripts/smoke-api.py` rejoue tout le parcours de l'API — inscription, connexion admin, catégories, challenges avec pièce jointe, amis, équipes, soumission de flags, achievements, événements, export et import — et signale chaque appel qui ne répond pas comme attendu.
+`scripts/smoke-api.py` rejoue tout le parcours de l'API — inscription, connexion admin, catégories, challenges avec pièce jointe, amis, soumission de flags, achievements, événements, export et import — et signale chaque appel qui ne répond pas comme attendu.
 
 ```bash
 python scripts/smoke-api.py "<mot_de_passe_admin>" essai1 http://localhost:3100/api.php
@@ -745,17 +744,17 @@ npm run build
 - React.lazy + Suspense — code splitting sur les 8 routes
 - Error boundaries par route (isolation des crashs)
 - Hooks custom avec état `error` + composant `ErrorMessage` partagé
-- Types partagés centralisés dans `types.ts` (PlayerWithPoints, TeamMemberWithStats…)
+- Types partagés centralisés dans `types.ts` (PlayerWithPoints, RankingRow…)
 - `SettingsPage.tsx` splittée en 4 composants (de 747 → 64 lignes)
 - Build Vite standard (chunks séparés) — compatible `script-src 'self'` CSP sans `unsafe-inline`
 
 **SQL — bonnes pratiques**
-- `CHECK` constraints sur les invariants métier (`points > 0`, `solve_time_ms >= 0`, `bonus_malus.points != 0`, `age BETWEEN 13 AND 120`)
+- `CHECK` constraints sur les invariants métier (`points > 0`, `solve_time_ms >= 0`, `age BETWEEN 13 AND 120`)
 - FK nommées (`CONSTRAINT fk_<table>_<ref>`) et UNIQUE nommées (`CONSTRAINT uq_<table>_<col>`) sur toutes les tables
 - Index composite `submissions(user_id, submitted_at DESC)` pour les classements
 - `COMMENT` sur chaque table pour la lisibilité du schéma
 - `rate_limits.window_start` en `DATETIME` (cohérence avec le reste du schéma)
-- N+1 éliminé dans `category_perfect` et `get_team_ranking` (3 requêtes agrégées)
+- N+1 éliminé dans `category_perfect` (requêtes agrégées)
 - Transaction autour du delete + renumérotation dans `delete_category`
 - `LIMIT` sur tous les endpoints de listing (`get_all_flags`, etc.)
 
@@ -776,7 +775,7 @@ npm run build
 
 - Gestion des catégories depuis l'admin (CRUD + réordonnancement)
 - `categories.sort_order` et `categories.description_md` (Markdown)
-- Sous-sections amis et team dans la modale profil ami
+- Sous-section amis dans la modale profil ami
 - Optimisations `useMemo` sur `ProfilePage`
 
 ### ✅ v3.0
@@ -785,7 +784,6 @@ npm run build
 - Chiffrement AES-256-GCM des flags
 - Sessions sécurisées HTTP-only + CSRF
 - Rate limiting, CORS, en-têtes de sécurité
-- Système d'équipes complet (création, rôles, bannissement)
 - Reset de mot de passe par email (SMTP)
 
 ### ✅ v1.4 — v2.x

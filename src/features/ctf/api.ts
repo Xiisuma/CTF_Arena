@@ -27,14 +27,6 @@ export async function setCTFState(key: string, value: string): Promise<boolean> 
   return Boolean(data.ok);
 }
 
-export async function updatePlayMode(playMode: "solo" | "multiplayer"): Promise<boolean> {
-  const data = await apiFetch("update_play_mode", {
-    method: "POST",
-    body: JSON.stringify({ playMode }),
-  });
-  return Boolean(data.ok);
-}
-
 export interface PodiumData {
   soloTop3: Array<{
     userId: number;
@@ -42,33 +34,29 @@ export interface PodiumData {
     flagsFound: number;
     totalPoints: number;
   }>;
-  teamFirst: {
-    teamId: string;
-    teamName: string;
-    emoji: string;
-    flagsFound: number;
-    totalPoints: number;
-    memberCount: number;
-  } | null;
   mostFlags: {
     userId: number;
     username: string;
-    playMode: string;
     flagsFound: number;
+  } | null;
+  mostAchievements: {
+    userId: number;
+    username: string;
+    count: number;
   } | null;
 }
 
 export async function getPodium(): Promise<PodiumData> {
   try {
     const data = await apiFetch("get_podium", { method: "GET" });
-    if (!data.ok) return { soloTop3: [], teamFirst: null, mostFlags: null };
+    if (!data.ok) return { soloTop3: [], mostFlags: null, mostAchievements: null };
     return {
       soloTop3:  (data.soloTop3  as PodiumData["soloTop3"])  ?? [],
-      teamFirst: (data.teamFirst as PodiumData["teamFirst"]) ?? null,
       mostFlags: (data.mostFlags as PodiumData["mostFlags"]) ?? null,
+      mostAchievements: (data.mostAchievements as PodiumData["mostAchievements"]) ?? null,
     };
   } catch {
-    return { soloTop3: [], teamFirst: null, mostFlags: null };
+    return { soloTop3: [], mostFlags: null, mostAchievements: null };
   }
 }
 

@@ -6,7 +6,6 @@ export interface PublicProfile {
   username: string;
   avatarEmoji: string;
   bio: string;
-  playMode: "solo" | "multiplayer";
   createdAt: string;
   points: number;
   solved: number;
