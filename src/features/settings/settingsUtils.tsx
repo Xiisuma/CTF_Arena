@@ -3,8 +3,6 @@
  * settingsUtils.tsx — shared constants and micro-components for SettingsPage sections
  */
 
-import type { TeamRole } from "../../types";
-
 // ─── Couleurs boutons ─────────────────────────────────────────────────────────
 
 export const COLOR_MAP: Record<string, string> = {
@@ -14,12 +12,6 @@ export const COLOR_MAP: Record<string, string> = {
   rose:    "border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20",
   sky:     "border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20",
   violet:  "border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
-};
-
-export const ROLE_COLORS: Record<TeamRole, string> = {
-  owner:  "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  admin:  "border-violet-500/30 bg-violet-500/10 text-violet-300",
-  member: "border-primary bg-input text-tertiary",
 };
 
 // ─── Shared components ────────────────────────────────────────────────────────

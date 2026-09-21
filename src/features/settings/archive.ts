@@ -39,7 +39,6 @@ export interface ExportedPlayer {
   passwordHash: string;
   age: number | null;
   gender: "male" | "female" | "other" | null;
-  playMode: "solo" | "multiplayer";
 }
 
 export interface ArchiveData {

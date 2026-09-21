@@ -7,18 +7,16 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import CategoriesSection from "../features/settings/CategoriesSection";
 import { PlayersSection } from "../features/settings/PlayersSection";
-import { TeamsSection } from "../features/settings/TeamsSection";
 import { DashboardSection } from "../features/settings/DashboardSection";
 import { ImportExportSection } from "../features/settings/ImportExportSection";
 import { DeroulementSection } from "../features/settings/DeroulementSection";
 import { ActivityLogSection } from "../features/settings/ActivityLogSection";
 import { ThematiqueSection } from "../features/settings/ThematiqueSection";
 
-type Tab = "players" | "teams" | "dashboard" | "categories" | "import-export" | "deroulement" | "journal" | "thematique";
+type Tab = "players" | "dashboard" | "categories" | "import-export" | "deroulement" | "journal" | "thematique";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "players",    label: "👤 Joueurs" },
-  { id: "teams",      label: "🛡️ Teams" },
   { id: "dashboard",  label: "📊 Dashboard" },
   { id: "categories",    label: "🗂️ Catégories" },
   { id: "import-export", label: "📦 Import / Export" },
@@ -52,7 +50,7 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-3xl font-black text-primary">⚙️ Paramètres</h1>
         <p className="mt-1 text-sm text-tertiary">
-          Administration complète : joueurs, teams, statistiques et catégories.
+          Administration complète : joueurs, statistiques et catégories.
         </p>
       </div>
 
@@ -73,7 +71,6 @@ export default function SettingsPage() {
       </div>
 
       {tab === "players"    && <PlayersSection />}
-      {tab === "teams"      && <TeamsSection />}
       {tab === "dashboard"  && <DashboardSection />}
       {tab === "categories"    && <CategoriesSection />}
       {tab === "import-export" && <ImportExportSection />}

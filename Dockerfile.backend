@@ -20,11 +20,11 @@ RUN mkdir -p /var/www/html/uploads \
     && chown www-data:www-data /var/www/html/uploads \
     && chmod 755 /var/www/html/uploads
 
-# Crée le dossier pour les logs d'activité (catégories : auth, gameplay, teams, social, admin, misc + all.log)
+# Crée le dossier pour les logs d'activité (catégories : auth, gameplay, social, admin, misc + all.log)
 RUN mkdir -p /var/log/ctf_arena \
     && chown www-data:www-data /var/log/ctf_arena \
     && chmod 755 /var/log/ctf_arena \
-    && for f in auth gameplay teams social admin misc all; do \
+    && for f in auth gameplay social admin misc all; do \
          touch /var/log/ctf_arena/$f.log \
          && chown www-data:www-data /var/log/ctf_arena/$f.log \
          && chmod 644 /var/log/ctf_arena/$f.log; \
