@@ -20,7 +20,7 @@ import { CTFStateProvider, useCTFState } from "./features/ctf/CTFStateContext";
 
 // ─── Lazy page imports (code splitting par route) ─────────────────────────────
 
-const CHUNK_RELOAD_KEY = "ctf-chunk-reload";
+export const CHUNK_RELOAD_KEY = "ctf-chunk-reload";
 
 /**
  * Charge une page en différé, avec un filet de sécurité au déploiement.
@@ -31,7 +31,7 @@ const CHUNK_RELOAD_KEY = "ctf-chunk-reload";
  * récupérer la nouvelle version. Si l'échec persiste, l'erreur est propagée à
  * l'ErrorBoundary : inutile de boucler sur des rechargements.
  */
-function lazyPage<P>(factory: () => Promise<{ default: ComponentType<P> }>) {
+export function lazyPage<P>(factory: () => Promise<{ default: ComponentType<P> }>) {
   return lazy(() =>
     factory().catch((error: unknown) => {
       let alreadyReloaded = true;

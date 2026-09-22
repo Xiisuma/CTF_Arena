@@ -153,3 +153,7 @@
 
 2026-09-21 | Bloc ajouté dans `set_ctf_state` utilisant `$pdo` alors que ce case n'appelle que `get_pdo()` à la volée : `Undefined variable $pdo`, erreur 500 sur tout changement d'état du CTF, invisible pour les tests unitaires | Dans api.php, chaque `case` gère sa propre connexion : avant d'insérer du code dans un case, vérifier si `$pdo` y est défini, sinon appeler `get_pdo()`. Un endpoint jamais rejoué de bout en bout est un endpoint non vérifié — c'est le smoke test qui l'a attrapé, pas le typecheck.
 
+2026-09-22 | Écran d'erreur au premier chargement après un déploiement, réglé par un simple rechargement : nginx ne posait aucun en-tête de cache, le navigateur gardait `index.html` en cache heuristique et demandait des bundles hashés supprimés | Une application à bundles hashés a besoin de deux règles de cache : `immutable` sur les fichiers versionnés, `no-cache` sur index.html. Et prévoir le cas du client déjà chargé pendant un déploiement (rechargement automatique unique sur échec d'import dynamique).
+
+2026-09-22 | `add_header` posé dans un `location` annule tous les `add_header` hérités du bloc `server` — en l'occurrence CSP, X-Frame-Options et consorts auraient disparu des pages HTML | Dans nginx, ne jamais ajouter un en-tête dans un `location` sans vérifier ce qui est hérité. Préférer une `map` + un seul `add_header` au niveau `server` (valeur vide = en-tête non posé).
+

@@ -383,3 +383,23 @@ mais ne peut jamais valider ses propres challenges.
 - [x] Stack jetable `-p ctfp7` : 34 contrôles au vert sur les 4 chantiers (points dégressifs, essais,
       rôle auteur, succès), redémarrage sans erreur, smoke test 81 appels 0 échec sur base neuve
 - [x] Bug attrapé au passage : `set_ctf_state` renvoyait 500 (`$pdo` non défini dans ce case)
+
+## Point 1 — erreur au premier chargement (2026-09-22, branche `fix-premier-chargement`)
+
+Symptôme d'Axel : au premier chargement, écran d'erreur demandant de recharger ; après rechargement,
+tout fonctionne. Cause : aucun en-tête de cache côté nginx, donc `index.html` servi depuis le cache
+du navigateur après un déploiement, pointant vers des bundles hashés supprimés.
+
+- [x] nginx : `map` sur l'URI, `immutable` pour `/assets/`, `no-cache, must-revalidate` ailleurs,
+      rien pour `/api.php` qui pose déjà les siens
+- [x] En-tête posé au niveau `server` pour ne pas annuler l'héritage des en-têtes de sécurité
+- [x] `lazyPage()` : un bundle manquant déclenche un rechargement unique, puis laisse l'erreur remonter
+- [x] 3 tests sur le filet de sécurité
+
+### Vérification (stack jetable `-p ctfp8`)
+- [x] typecheck, lint, 96/96 tests
+- [x] `index.html` : `no-cache, must-revalidate` + en-têtes de sécurité toujours présents
+- [x] `/assets/*` : `public, max-age=31536000, immutable`
+- [x] `/api.php` : un seul en-tête de cache, celui de PHP
+- [x] Page chargée dans le navigateur sans erreur console ; smoke test 81 appels, 0 échec
+
