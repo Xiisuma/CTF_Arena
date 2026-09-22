@@ -11,12 +11,13 @@ import { getRankProgress } from "../features/ranking/ranks";
 import { StatCard, StatsContent } from "../features/profile/ProfileCharts";
 import { FlagsSection } from "../features/profile/FlagsSection";
 import { FriendsSection } from "../features/friends/FriendsSection";
+import { AttemptsSection } from "../features/profile/AttemptsSection";
 import { formatMs } from "../features/profile/profileUtils";
 import { updateProfile } from "../features/profile/publicProfileApi";
 import type { FlagSubmission } from "../types";
 
-type ProfileTab = "flags" | "stats" | "friends" | "edit";
-const PROFILE_TABS = new Set<ProfileTab>(["flags", "stats", "friends", "edit"]);
+type ProfileTab = "flags" | "attempts" | "stats" | "friends" | "edit";
+const PROFILE_TABS = new Set<ProfileTab>(["flags", "attempts", "stats", "friends", "edit"]);
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -132,7 +133,7 @@ export default function ProfilePage() {
 
       {/* Onglets */}
       <div className="flex rounded-xl bg-input p-1 w-fit flex-wrap gap-1">
-        {(["flags", "stats", "friends", "edit"] as const).map((t) => (
+        {(["flags", "attempts", "stats", "friends", "edit"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -140,12 +141,23 @@ export default function ProfilePage() {
               tab === t ? "bg-accent-primary text-white shadow-md" : "text-tertiary hover:text-secondary"
             }`}
           >
-            {t === "flags" ? "🏅 Mes Flags" : t === "stats" ? "📊 Mes Stats" : t === "friends" ? "👥 Amis" : "✏️ Mon Profil"}
+            {t === "flags" ? "🏅 Mes Flags"
+              : t === "attempts" ? "🧪 Mes Essais"
+              : t === "stats" ? "📊 Mes Stats"
+              : t === "friends" ? "👥 Amis" : "✏️ Mon Profil"}
           </button>
         ))}
       </div>
 
       {tab === "flags" && <FlagsSection flags={flags} />}
+      {tab === "attempts" && !user.isAdmin && <AttemptsSection />}
+      {tab === "attempts" && user.isAdmin && (
+        <div className="rounded-2xl border border-primary bg-card p-6 text-center">
+          <p className="text-sm text-tertiary">
+            Les administrateurs ne soumettent pas de flags : aucun essai à afficher.
+          </p>
+        </div>
+      )}
       {tab === "stats" && <StatsContent flags={flags} userId={user.id} />}
       {tab === "friends" && <FriendsSection userId={user.id} />}
       {tab === "edit" && (

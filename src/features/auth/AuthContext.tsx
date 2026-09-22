@@ -25,6 +25,8 @@ export interface AuthUser {
   age: number | null;
   gender: "male" | "female" | "other" | null;
   isAdmin: boolean;
+  /** Peut créer des challenges et ne gérer que les siens. */
+  isAuthor: boolean;
   avatarEmoji: string;
   bio: string;
   // password n'est jamais renvoyé par l'API — ne pas l'inclure dans le type client
@@ -101,6 +103,7 @@ interface RawApiUser {
   age?: number | null;
   gender?: string | null;
   isAdmin?: boolean;
+  isAuthor?: boolean;
   avatarEmoji?: string;
   avatar_emoji?: string;
   bio?: string;
@@ -114,6 +117,7 @@ function normalizeUser(raw: RawApiUser): AuthUser {
     age: raw.age ?? null,
     gender: (raw.gender as AuthUser["gender"]) ?? null,
     isAdmin: Boolean(raw.isAdmin),
+    isAuthor: Boolean(raw.isAuthor),
     avatarEmoji: (raw.avatarEmoji ?? raw.avatar_emoji ?? '🎯'),
     bio: raw.bio ?? '',
     createdAt: new Date().toISOString(),

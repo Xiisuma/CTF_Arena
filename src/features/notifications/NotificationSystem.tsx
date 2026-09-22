@@ -169,7 +169,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         addNotif({
           type: "friend_flag",
           icon: "🏴",
-          message: `${username} a complété l'énigme "${flag.challengeTitle}"`,
+          message: `${username} a complété le challenge "${flag.challengeTitle}"`,
           actorUsername: username,
           targetName: flag.challengeTitle,
         });

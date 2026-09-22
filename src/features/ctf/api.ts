@@ -39,18 +39,24 @@ export interface PodiumData {
     username: string;
     flagsFound: number;
   } | null;
+  mostAchievements: {
+    userId: number;
+    username: string;
+    count: number;
+  } | null;
 }
 
 export async function getPodium(): Promise<PodiumData> {
   try {
     const data = await apiFetch("get_podium", { method: "GET" });
-    if (!data.ok) return { soloTop3: [], mostFlags: null };
+    if (!data.ok) return { soloTop3: [], mostFlags: null, mostAchievements: null };
     return {
       soloTop3:  (data.soloTop3  as PodiumData["soloTop3"])  ?? [],
       mostFlags: (data.mostFlags as PodiumData["mostFlags"]) ?? null,
+      mostAchievements: (data.mostAchievements as PodiumData["mostAchievements"]) ?? null,
     };
   } catch {
-    return { soloTop3: [], mostFlags: null };
+    return { soloTop3: [], mostFlags: null, mostAchievements: null };
   }
 }
 

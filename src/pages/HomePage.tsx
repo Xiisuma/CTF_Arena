@@ -64,6 +64,15 @@ export default function HomePage() {
   const [addingToCategory, setAddingToCategory] = useState<string | null>(null);
   const [cardsPerLine, setCardsPerLine] = useState<CardsPerLine>(2);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  // Mode auteur : bascule d'affichage propre au navigateur. Les droits réels
+  // sont ceux que le serveur renvoie sur chaque challenge (canEdit).
+  const [authorMode, setAuthorMode] = useState(() => {
+    try {
+      return localStorage.getItem("ctf-author-mode") === "1";
+    } catch {
+      return false;
+    }
+  });
   const { pendingConfirm, requestConfirm, closeConfirm } = useConfirm();
 
   const { ctfState, phase, loading: ctfLoading } = useCTFState();
@@ -77,6 +86,18 @@ export default function HomePage() {
     if (wasNotStartedRef.current && !notStarted) refreshAll();
     wasNotStartedRef.current = notStarted;
   }, [phase, refreshAll]);
+
+  const toggleAuthorMode = useCallback(() => {
+    setAuthorMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("ctf-author-mode", next ? "1" : "0");
+      } catch {
+        // Stockage indisponible : la bascule reste valable pour la session
+      }
+      return next;
+    });
+  }, []);
 
   const challengesByCategory = useMemo(() => {
     return categories.reduce<Record<string, Challenge[]>>((acc, cat) => {
@@ -192,8 +213,10 @@ export default function HomePage() {
 
   const secondsLeft = phaseSecondsLeft(ctfState, phase);
   const isBlocked = (phase === "grace" || phase === "not_started") && !user.isAdmin;
+  // Un auteur bascule entre jouer et créer ; l'administrateur gère en permanence.
+  const isAuthoring = user.isAdmin || (user.isAuthor && authorMode);
   // Avant le lancement, les joueurs ne voient ni les catégories ni les challenges
-  const isLocked = phase === "not_started" && !user.isAdmin;
+  const isLocked = phase === "not_started" && !user.isAdmin && !user.isAuthor;
 
   const cardsGridClass: Record<CardsPerLine, string> = {
     1: "grid-cols-1",
@@ -217,7 +240,7 @@ export default function HomePage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-primary">🏴 Énigmes</h1>
+          <h1 className="text-3xl font-black text-primary">🏴 Challenges</h1>
           <p className="mt-1 text-sm text-tertiary">
             {isLocked
               ? "Les challenges seront révélés au lancement du CTF."
@@ -231,6 +254,19 @@ export default function HomePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {user.isAuthor && !user.isAdmin && (
+            <button
+              onClick={toggleAuthorMode}
+              aria-pressed={authorMode}
+              className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                authorMode
+                  ? "bg-violet-500 text-white shadow-md"
+                  : "border border-primary bg-input text-tertiary hover:text-secondary"
+              }`}
+            >
+              ✍️ Mode auteur {authorMode ? "activé" : "désactivé"}
+            </button>
+          )}
           <span className="text-xs font-semibold text-tertiary hidden sm:block">
             Cartes par ligne :
           </span>
@@ -264,13 +300,23 @@ export default function HomePage() {
         </div>
       )}
 
+      {user.isAuthor && !user.isAdmin && authorMode && (
+        <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 px-6 py-4">
+          <p className="text-sm font-semibold text-violet-300 mb-1">✍️ Mode auteur activé</p>
+          <p className="text-sm text-violet-200/80">
+            Vous créez et modifiez vos challenges. Désactivez le mode auteur pour jouer :
+            vous pourrez résoudre les challenges des autres, jamais les vôtres.
+          </p>
+        </div>
+      )}
+
       {/* Countdown brouillage */}
       {(phase === "scramble" || phase === "grace") && secondsLeft !== null && (
         <ScrambleCountdown secondsLeft={secondsLeft} />
       )}
 
       {/* Barre de progression du rang */}
-      {rankData && !isLocked && (
+      {rankData && !isLocked && !authorMode && (
         <RankProgressBar rankData={rankData} solvedCount={solvedIds.size} />
       )}
 
@@ -353,7 +399,7 @@ export default function HomePage() {
                           </span>
                         </div>
                       )}
-                      {user.isAdmin && (
+                      {isAuthoring && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -389,12 +435,18 @@ export default function HomePage() {
                             key={challenge.id}
                             challenge={challenge}
                             solved={solvedIds.has(challenge.id)}
-                            onOpen={isBlocked ? () => {} : () => setSelectedChallenge(challenge)}
+                            onOpen={
+                              isBlocked
+                                ? () => {}
+                                : isAuthoring && challenge.canEdit
+                                  ? () => setEditingChallenge(challenge)
+                                  : () => setSelectedChallenge(challenge)
+                            }
                             onEdit={() => setEditingChallenge(challenge)}
                             onDelete={() =>
                               handleDeleteChallenge(challenge.id)
                             }
-                            isAdmin={user.isAdmin}
+                            canManage={isAuthoring && challenge.canEdit}
                           />
                         ))
                       )}

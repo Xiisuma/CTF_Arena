@@ -1,7 +1,7 @@
 
 /**
  * PodiumPage.tsx
- * Affiche les 4 gagnants du CTF avec révélation progressive synchronisée.
+ * Affiche les 5 gagnants du CTF avec révélation progressive synchronisée.
  * - Affichage : 1er en haut → mostFlags en bas
  * - Révélation : bas → haut (mostFlags d'abord, 1er en dernier)
  * - podiumRevealed est stocké en DB et synchronisé via WebSocket — tous les
@@ -21,11 +21,12 @@ const SLOT_LABELS = [
   { rank: 2, label: "2ème du classement",           emoji: "🥈" },
   { rank: 3, label: "3ème du classement",           emoji: "🥉" },
   { rank: 4, label: "Joueur avec le plus de flags", emoji: "🏴" },
+  { rank: 5, label: "Joueur avec le plus de succès", emoji: "🎖️" },
 ];
 const SLOT_COUNT = SLOT_LABELS.length;
 
 function buildSlots(data: PodiumData): Array<{ rank: number; label: string; emoji: string; name: string; detail: string } | null> {
-  // Ordre : 1er → 2e → 3e → mostFlags
+  // Ordre : 1er → 2e → 3e → mostFlags → mostAchievements
   return [
     data.soloTop3[0]
       ? { ...SLOT_LABELS[0], name: data.soloTop3[0].username, detail: `${data.soloTop3[0].totalPoints} pts · ${data.soloTop3[0].flagsFound} flags` }
@@ -38,6 +39,13 @@ function buildSlots(data: PodiumData): Array<{ rank: number; label: string; emoj
       : null,
     data.mostFlags
       ? { ...SLOT_LABELS[3], name: data.mostFlags.username, detail: `${data.mostFlags.flagsFound} flags au total` }
+      : null,
+    data.mostAchievements
+      ? {
+          ...SLOT_LABELS[4],
+          name: data.mostAchievements.username,
+          detail: `${data.mostAchievements.count} succès débloqué${data.mostAchievements.count > 1 ? "s" : ""}`,
+        }
       : null,
   ];
 }

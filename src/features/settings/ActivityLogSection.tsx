@@ -20,6 +20,7 @@ const TYPE_LABEL: Record<string, string> = {
   ctf_state_change:     "État CTF modifié ⚙️",
   friend_request_sent:  "Demande d'ami envoyée",
   player_deleted:       "Joueur supprimé 🗑️",
+  author_role_changed:  "Rôle auteur modifié ✍️",
   progress_reset:       "Progression réinitialisée",
 };
 
@@ -36,6 +37,7 @@ const TYPE_BADGE: Record<string, string> = {
   challenge_deleted:    "bg-rose-500/20   text-rose-300   border-rose-500/30",
   ctf_state_change:     "bg-orange-500/20 text-orange-300 border-orange-500/30",
   player_deleted:       "bg-rose-500/20   text-rose-300   border-rose-500/30",
+  author_role_changed:  "bg-violet-500/20 text-violet-300 border-violet-500/30",
 };
 const DEFAULT_BADGE = "bg-blue-500/20 text-blue-300 border-blue-500/30";
 

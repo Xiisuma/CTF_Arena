@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS users (
     age           TINYINT UNSIGNED NULL,
     gender        ENUM('male','female','other') NULL,
     is_admin      TINYINT(1)       NOT NULL DEFAULT 0,
+    is_author     TINYINT(1)       NOT NULL DEFAULT 0
+                  COMMENT 'Peut créer des challenges et ne gérer que les siens',
+    clean_streak  INT UNSIGNED     NOT NULL DEFAULT 0
+                  COMMENT 'Validations d’affilée sans flag faux (succès Sans faute)',
+    was_bottom_half TINYINT(1)     NOT NULL DEFAULT 0
+                  COMMENT 'A déjà figuré dans la moitié basse du classement (succès Remontada)',
     created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT uq_users_username UNIQUE (username),
@@ -91,6 +97,7 @@ CREATE TABLE IF NOT EXISTS challenges (
     flag_encrypted  TEXT         NOT NULL COMMENT 'Flag chiffré AES-256-GCM, jamais exposé',
     difficulty_mode ENUM('auto','easy','medium','hard') NOT NULL DEFAULT 'auto',
     difficulty      ENUM('easy','medium','hard') NULL,
+    created_by      INT UNSIGNED NULL COMMENT 'Auteur du challenge (NULL = administrateur)',
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT ck_challenges_points CHECK (points > 0),
@@ -116,8 +123,12 @@ CREATE TABLE IF NOT EXISTS challenge_files (
 
 CREATE TABLE IF NOT EXISTS submissions (
     id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id       INT UNSIGNED NOT NULL,
-    challenge_id  INT UNSIGNED NOT NULL,
+    user_id        INT UNSIGNED NOT NULL,
+    challenge_id   INT UNSIGNED NOT NULL,
+    points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Points gagnés à la résolution — figés, le barème est dégressif',
+    wrong_attempts INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Flags erronés tapés sur ce challenge avant de le valider',
     solve_time_ms INT UNSIGNED NULL,
     submitted_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_submissions_user_challenge  UNIQUE  (user_id, challenge_id),
@@ -129,6 +140,22 @@ CREATE TABLE IF NOT EXISTS submissions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Flags validés — une ligne = un challenge résolu par un joueur.';
 
+-- ─── Essais de flags ──────────────────────────────────────────────────────────
+-- Historique des flags erronés, visible du seul joueur qui les a tapés.
+-- Les essais d'un challenge sont effacés dès qu'il est résolu.
+
+CREATE TABLE IF NOT EXISTS flag_attempts (
+    id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT UNSIGNED NOT NULL,
+    challenge_id INT UNSIGNED NOT NULL,
+    attempt      VARCHAR(255) NOT NULL,
+    submitted_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_fa_user_challenge (user_id, challenge_id, submitted_at DESC),
+    CONSTRAINT fk_flag_attempts_users      FOREIGN KEY (user_id)      REFERENCES users(id)      ON DELETE CASCADE,
+    CONSTRAINT fk_flag_attempts_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Flags erronés tentés par un joueur sur un challenge non résolu.';
+
 -- ─── Achievements ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS achievements (
@@ -139,6 +166,12 @@ CREATE TABLE IF NOT EXISTS achievements (
     condition_type     VARCHAR(30)  NOT NULL,
     condition_value    INT          NOT NULL DEFAULT 1,
     condition_category VARCHAR(30)  NULL,
+    points             INT UNSIGNED NOT NULL DEFAULT 0
+                       COMMENT 'Points ajoutés au score du joueur au déblocage',
+    is_hidden          TINYINT(1)   NOT NULL DEFAULT 0
+                       COMMENT 'Succès caché : le nom et la condition ne sont révélés qu’au déblocage',
+    is_repeatable      TINYINT(1)   NOT NULL DEFAULT 0
+                       COMMENT 'Débloquable plusieurs fois, une par contexte (ex. First Blood par challenge)',
     created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Définitions des succès débloquables (trophées).';
@@ -147,8 +180,12 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     id             CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
     user_id        INT UNSIGNED NOT NULL,
     achievement_id CHAR(36)     NOT NULL,
+    context        VARCHAR(100) NOT NULL DEFAULT ''
+                   COMMENT 'Contexte du déblocage (id de challenge pour First Blood)',
+    points_awarded INT UNSIGNED NOT NULL DEFAULT 0
+                   COMMENT 'Points gagnés — figés au déblocage',
     unlocked_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_user_achievements        UNIQUE  (user_id, achievement_id),
+    CONSTRAINT uq_user_achievements        UNIQUE  (user_id, achievement_id, context),
     INDEX idx_ua_achievement_id            (achievement_id),
     CONSTRAINT fk_user_achievements_users        FOREIGN KEY (user_id)        REFERENCES users(id)        ON DELETE CASCADE,
     CONSTRAINT fk_user_achievements_achievements FOREIGN KEY (achievement_id) REFERENCES achievements(id) ON DELETE CASCADE

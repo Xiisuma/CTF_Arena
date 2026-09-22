@@ -147,3 +147,13 @@
 
 2026-09-19 | « L'avatar du profil ne change pas » : le correctif côté React (relire l'utilisateur après sauvegarde) ne suffisait pas, car `me` et `login` ne renvoyaient tout simplement pas `avatar_emoji` ni `bio` — l'interface retombait toujours sur l'emoji par défaut | Quand une valeur affichée semble « ne pas se mettre à jour », vérifier d'abord ce que l'API renvoie réellement (un appel direct à l'endpoint) avant de corriger l'état côté client. Une colonne ajoutée en base doit être ajoutée dans TOUS les SELECT qui composent la réponse utilisateur (register, login, me).
 
+2026-09-21 | Migration ajoutant `submissions.points_awarded` placée à la fin de init.php, après la recréation des vues qui référencent déjà la colonne : `Column not found: 1054 Unknown column 's.points_awarded'`, backend en boucle de redémarrage | Dans init.php, l'ordre est imposé par les dépendances : colonnes et tables d'abord, vues ensuite. Toute migration de schéma doit être écrite AVANT le bloc `CREATE OR REPLACE VIEW`, jamais après.
+
+2026-09-21 | Le rattrapage des flags d'équipe (INSERT dans submissions) n'alimentait pas la nouvelle colonne `points_awarded` : les flags récupérés seraient repartis à 0 point | Quand une colonne obligatoire pour le score est ajoutée, relire tous les INSERT existants sur la table, y compris ceux des migrations précédentes.
+
+2026-09-21 | Bloc ajouté dans `set_ctf_state` utilisant `$pdo` alors que ce case n'appelle que `get_pdo()` à la volée : `Undefined variable $pdo`, erreur 500 sur tout changement d'état du CTF, invisible pour les tests unitaires | Dans api.php, chaque `case` gère sa propre connexion : avant d'insérer du code dans un case, vérifier si `$pdo` y est défini, sinon appeler `get_pdo()`. Un endpoint jamais rejoué de bout en bout est un endpoint non vérifié — c'est le smoke test qui l'a attrapé, pas le typecheck.
+
+2026-09-22 | Écran d'erreur au premier chargement après un déploiement, réglé par un simple rechargement : nginx ne posait aucun en-tête de cache, le navigateur gardait `index.html` en cache heuristique et demandait des bundles hashés supprimés | Une application à bundles hashés a besoin de deux règles de cache : `immutable` sur les fichiers versionnés, `no-cache` sur index.html. Et prévoir le cas du client déjà chargé pendant un déploiement (rechargement automatique unique sur échec d'import dynamique).
+
+2026-09-22 | `add_header` posé dans un `location` annule tous les `add_header` hérités du bloc `server` — en l'occurrence CSP, X-Frame-Options et consorts auraient disparu des pages HTML | Dans nginx, ne jamais ajouter un en-tête dans un `location` sans vérifier ce qui est hérité. Préférer une `map` + un seul `add_header` au niveau `server` (valeur vide = en-tête non posé).
+

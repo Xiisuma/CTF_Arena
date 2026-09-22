@@ -7,7 +7,7 @@ export function FlagsSection({ flags }: { flags: FlagSubmission[] }) {
   if (!flags.length) {
     return (
       <div className="rounded-2xl border border-primary bg-card p-10 text-center">
-        <p className="text-sm text-tertiary">Aucune énigme résolue pour le moment.</p>
+        <p className="text-sm text-tertiary">Aucun challenge résolu pour le moment.</p>
       </div>
     );
   }

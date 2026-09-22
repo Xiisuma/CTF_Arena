@@ -732,16 +732,22 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
-        <div className="mb-8 text-center">
-          <div className="mb-3 inline-flex h-16 w-16 items-center justify-center rounded-2xl
-                          border border-accent-primary/30 bg-accent-primary/20 text-3xl
-                          shadow-lg shadow-accent-primary/10">
-            🏴
-          </div>
-          <h1 className="text-4xl font-black tracking-tight text-primary">CTF Arena</h1>
-          <p className="mt-1 text-xs uppercase tracking-[0.3em] text-tertiary">
-            Capture The Flag Platform
-          </p>
+        <div className="mb-8 flex justify-center">
+          <h1 className="sr-only">CTF Arena — Capture The Flag</h1>
+          <img
+            src="/logo.svg"
+            alt="CTF Arena — Capture The Flag"
+            width={320}
+            height={80}
+            className="brand-logo-dark h-20 w-auto"
+          />
+          <img
+            src="/logo-on-light.svg"
+            alt="CTF Arena — Capture The Flag"
+            width={320}
+            height={80}
+            className="brand-logo-light h-20 w-auto"
+          />
         </div>
 
         {/* Carte */}

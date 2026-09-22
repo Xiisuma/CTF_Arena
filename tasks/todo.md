@@ -291,3 +291,115 @@ pour éviter les conflits dans api.php.
       une inscription repart sur 🎯
 - [x] Base neuve : smoke test 81 appels, 0 échec
 
+## Point 3 — points dégressifs (2026-09-21, branche `features-points-degressifs`)
+
+Choix d'Axel : décote lente au début puis de plus en plus rapide, plancher à 25 % de la valeur
+de départ, atteint à la 12e résolution, points figés au moment de la résolution.
+
+Courbe : `points(n) = P − (P − P×25 %) × ((n−1)/12)²`, bornée au plancher.
+Pour 100 points : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, puis 25.
+
+- [x] api.php : `dynamic_points()` + `next_challenge_points()`, réglables par
+      `SCORING_DECAY_SOLVES` et `SCORING_FLOOR_PERCENT`
+- [x] Colonne `submissions.points_awarded` : points figés, migration idempotente dans init.php
+      (placée avant les vues, qui la référencent)
+- [x] Tous les calculs de score basculés sur `SUM(s.points_awarded)` : vues, classement, liste
+      admin, profil public, historique des flags, succès
+- [x] `get_challenges` renvoie `currentPoints` et `solves` ; `points` reste la valeur de départ
+      éditée par l'admin
+- [x] Carte et modale : valeur actuelle + nombre de résolutions ; message de succès basé sur les
+      points réellement gagnés
+
+### Vérification (stack jetable `-p ctfp5`)
+- [x] typecheck, lint, 86/86 tests, `php -l`
+- [x] Base existante : les 2 anciennes soumissions gardent 100 points après migration
+- [x] 14 résolutions successives : 100, 99, 98, 95, 92, 87, 81, 74, 67, 58, 48, 37, 25, 25
+- [x] Points figés : 1er à 100, 5e à 92, dernier à 25, cohérent dans le classement, l'historique,
+      le profil public et la liste admin
+- [ ] Redémarrage du backend et smoke test sur base neuve : à refaire, Docker Desktop s'est arrêté
+
+## Point 4 — historique des essais (2026-09-21, branche `features-historique-essais`)
+
+Demande d'Axel : dans le profil, un onglet « Mes Essais » à côté de Flags / Stats / Amis, avec un
+sélecteur listant uniquement les challenges commencés mais pas résolus, puis l'historique des flags
+tentés sur celui choisi. Les essais d'un challenge disparaissent dès qu'il est résolu.
+
+- [x] Table `flag_attempts` (schéma + migration idempotente dans init.php)
+- [x] `submit_flag` : un flag erroné est mémorisé, sauf pour un challenge mystère (ne rien révéler)
+- [x] Flag correct : les essais du challenge sont effacés (aussi pour le flag mystère)
+- [x] `reset_user_progress` efface également les essais
+- [x] Endpoint `get_flag_attempts` : joueur connecté uniquement, jamais ceux d'un autre, groupé par
+      challenge et filtré sur les challenges non résolus
+- [x] Onglet « 🧪 Mes Essais » + `AttemptsSection` (sélecteur + liste des essais datés)
+- [x] Test MSW sur `getFlagAttempts`
+
+### Vérification
+- [x] typecheck, lint, 89/89 tests
+- [ ] `php -l`, parcours sur stack jetable (essai enregistré, disparition après résolution,
+      isolation entre joueurs) : à faire, Docker Desktop est arrêté
+
+## Point 5 — rôle auteur (2026-09-21, branche `features-role-auteur`)
+
+Demande d'Axel : donner le rôle auteur à certains comptes depuis Paramètres. Un auteur crée des
+challenges dans les catégories existantes, modifie et supprime uniquement les siens, et dispose
+d'un bouton « mode auteur » sur la page d'accueil. Mode activé : il crée. Mode désactivé : il joue,
+mais ne peut jamais valider ses propres challenges.
+
+- [x] `users.is_author` et `challenges.created_by` (schéma + migrations idempotentes)
+- [x] `require_author()` et `require_challenge_owner()` : l'admin passe partout, l'auteur seulement
+      sur ses créations (add / update / delete challenge)
+- [x] `submit_flag` : un auteur valide ses propres challenges en dernier, une fois tous ceux des autres résolus (`authorLocked` calculé côté serveur)
+- [x] `get_challenges` calcule `canEdit` et `mine` côté serveur ; l'interface ne fait qu'obéir
+- [x] Les auteurs voient les challenges avant le lancement (nécessaire pour préparer)
+- [x] `set_author_role` (admin) + bouton dans PlayersSection + badge « Auteur » + journal
+- [x] Bascule « mode auteur » sur la page d'accueil, mémorisée par navigateur
+- [x] Modale : bandeau « vous êtes l'auteur », aucun champ de soumission sur ses propres challenges
+- [x] 4 tests sur la bascule et les droits d'édition
+
+### Vérification
+- [x] typecheck, lint, 93/93 tests
+- [ ] `php -l` et parcours sur stack jetable (auteur crée, modifie le sien, échoue sur celui d'un
+      autre, ne peut pas valider le sien) : à faire, Docker Desktop est arrêté
+
+## Point 6 — succès (2026-09-21, branche `features-succes`)
+
+19 succès validés par Axel : 13 visibles, 6 cachés, 750 points au total hors First Blood
+(répétable, dégressif par joueur : 25, 21, 18, 14, puis 10).
+
+- [x] `achievements_catalogue.php` : catalogue partagé entre api.php (évaluation) et init.php (semis)
+- [x] Colonnes : `achievements.points/is_hidden/is_repeatable`, `user_achievements.context/points_awarded`
+      (clé unique étendue au contexte), `submissions.wrong_attempts`, `users.clean_streak/was_bottom_half`,
+      `ctf_state.game_started_at`
+- [x] `evaluate_builtin_achievements()` : tout est recalculé côté serveur, aucun succès ne vient du client
+- [x] Points des succès comptés dans le classement, la liste admin, le profil public et les vues SQL
+- [x] `get_achievements` masque les succès cachés non débloqués (nom, condition et points)
+- [x] Succès intégrés non modifiables et non supprimables par l'admin
+- [x] Podium : 5e place « le plus de succès », départagée par la rareté puis la rapidité
+- [x] Carte de succès : points affichés, cadenas pour les cachés
+
+### Vérification
+- [x] typecheck, lint, 93/93 tests
+- [x] `php -l` sur api.php, init.php et achievements_catalogue.php
+- [x] Stack jetable `-p ctfp7` : 34 contrôles au vert sur les 4 chantiers (points dégressifs, essais,
+      rôle auteur, succès), redémarrage sans erreur, smoke test 81 appels 0 échec sur base neuve
+- [x] Bug attrapé au passage : `set_ctf_state` renvoyait 500 (`$pdo` non défini dans ce case)
+
+## Point 1 — erreur au premier chargement (2026-09-22, branche `fix-premier-chargement`)
+
+Symptôme d'Axel : au premier chargement, écran d'erreur demandant de recharger ; après rechargement,
+tout fonctionne. Cause : aucun en-tête de cache côté nginx, donc `index.html` servi depuis le cache
+du navigateur après un déploiement, pointant vers des bundles hashés supprimés.
+
+- [x] nginx : `map` sur l'URI, `immutable` pour `/assets/`, `no-cache, must-revalidate` ailleurs,
+      rien pour `/api.php` qui pose déjà les siens
+- [x] En-tête posé au niveau `server` pour ne pas annuler l'héritage des en-têtes de sécurité
+- [x] `lazyPage()` : un bundle manquant déclenche un rechargement unique, puis laisse l'erreur remonter
+- [x] 3 tests sur le filet de sécurité
+
+### Vérification (stack jetable `-p ctfp8`)
+- [x] typecheck, lint, 96/96 tests
+- [x] `index.html` : `no-cache, must-revalidate` + en-têtes de sécurité toujours présents
+- [x] `/assets/*` : `public, max-age=31536000, immutable`
+- [x] `/api.php` : un seul en-tête de cache, celui de PHP
+- [x] Page chargée dans le navigateur sans erreur console ; smoke test 81 appels, 0 échec
+

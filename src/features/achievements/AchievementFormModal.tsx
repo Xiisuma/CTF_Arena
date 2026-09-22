@@ -57,6 +57,12 @@ export function AchievementFormModal({
       icon: form.icon.trim(),
       condition: form.condition,
       conditionValue: form.conditionValue,
+      // Les succès créés par l'admin ne rapportent pas de points et ne sont pas cachés :
+      // le barème des 750 points est réservé aux succès intégrés.
+      points: 0,
+      isHidden: false,
+      isLocked: false,
+      isRepeatable: false,
       conditionCategory:
         form.condition === "category_flags" ? form.conditionCategory : undefined,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
