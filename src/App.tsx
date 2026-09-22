@@ -7,7 +7,7 @@
  * - loadCategories() au montage pour initialiser le store dynamique
  */
 
-import { lazy, Suspense, useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ComponentType, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Layout from "./shared/ui/Layout";
 import { ErrorBoundary } from "./shared/ui/ErrorBoundary";
@@ -20,16 +20,45 @@ import { CTFStateProvider, useCTFState } from "./features/ctf/CTFStateContext";
 
 // ─── Lazy page imports (code splitting par route) ─────────────────────────────
 
-const LoginPage         = lazy(() => import("./pages/LoginPage"));
-const HomePage          = lazy(() => import("./pages/HomePage"));
-const RankingPage       = lazy(() => import("./pages/RankingPage"));
-const GuidePage         = lazy(() => import("./pages/GuidePage"));
-const ProfilePage       = lazy(() => import("./pages/ProfilePage"));
-const AchievementsPage  = lazy(() => import("./pages/AchievementsPage"));
-const SettingsPage      = lazy(() => import("./pages/SettingsPage"));
-const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
-const PodiumPage        = lazy(() => import("./pages/PodiumPage"));
-const PublicProfilePage = lazy(() => import("./pages/PublicProfilePage"));
+const CHUNK_RELOAD_KEY = "ctf-chunk-reload";
+
+/**
+ * Charge une page en différé, avec un filet de sécurité au déploiement.
+ *
+ * Les bundles Vite portent un hash dans leur nom : après une mise à jour, un
+ * onglet ouvert (ou un index.html encore en cache) demande des fichiers qui
+ * n'existent plus. Plutôt qu'un écran d'erreur, on recharge une seule fois pour
+ * récupérer la nouvelle version. Si l'échec persiste, l'erreur est propagée à
+ * l'ErrorBoundary : inutile de boucler sur des rechargements.
+ */
+function lazyPage<P>(factory: () => Promise<{ default: ComponentType<P> }>) {
+  return lazy(() =>
+    factory().catch((error: unknown) => {
+      let alreadyReloaded = true;
+      try {
+        alreadyReloaded = sessionStorage.getItem(CHUNK_RELOAD_KEY) === "1";
+        if (!alreadyReloaded) sessionStorage.setItem(CHUNK_RELOAD_KEY, "1");
+      } catch {
+        // Stockage indisponible : on ne recharge pas, pour éviter une boucle
+      }
+      if (alreadyReloaded) throw error;
+      window.location.reload();
+      // Le rechargement est en cours : on laisse le spinner affiché
+      return new Promise<{ default: ComponentType<P> }>(() => {});
+    })
+  );
+}
+
+const LoginPage         = lazyPage(() => import("./pages/LoginPage"));
+const HomePage          = lazyPage(() => import("./pages/HomePage"));
+const RankingPage       = lazyPage(() => import("./pages/RankingPage"));
+const GuidePage         = lazyPage(() => import("./pages/GuidePage"));
+const ProfilePage       = lazyPage(() => import("./pages/ProfilePage"));
+const AchievementsPage  = lazyPage(() => import("./pages/AchievementsPage"));
+const SettingsPage      = lazyPage(() => import("./pages/SettingsPage"));
+const NotificationsPage = lazyPage(() => import("./pages/NotificationsPage"));
+const PodiumPage        = lazyPage(() => import("./pages/PodiumPage"));
+const PublicProfilePage = lazyPage(() => import("./pages/PublicProfilePage"));
 
 // ─── Spinner partagé (fallback Suspense et auth loading) ─────────────────────
 
@@ -59,6 +88,13 @@ function EventThemeApplier() {
 function CategoriesLoader() {
   useEffect(() => {
     loadCategories().catch(() => {});
+    // L'application a démarré : le filet anti-chunk-manquant est réarmé pour
+    // le prochain déploiement.
+    try {
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+    } catch {
+      // Stockage indisponible : rien à nettoyer
+    }
   }, []);
   return null;
 }
