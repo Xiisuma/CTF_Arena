@@ -157,3 +157,6 @@
 
 2026-09-22 | `add_header` posé dans un `location` annule tous les `add_header` hérités du bloc `server` — en l'occurrence CSP, X-Frame-Options et consorts auraient disparu des pages HTML | Dans nginx, ne jamais ajouter un en-tête dans un `location` sans vérifier ce qui est hérité. Préférer une `map` + un seul `add_header` au niveau `server` (valeur vide = en-tête non posé).
 
+2026-09-23 | Script Python de patch : `open(path, "w")` tronque le fichier AVANT que l'encodage échoue — Layout.tsx s'est retrouvé à 0 octet sur une UnicodeEncodeError | Encoder d'abord (`data = s.encode("utf-8")`) ou écrire dans un fichier temporaire puis le renommer. Après tout échec d'un script d'édition, vérifier la taille des fichiers touchés (`wc -c`) avant de relancer.
+
+2026-09-23 | Emojis écrits sous forme d'échappements `\ud83d\udc41` dans une source Python : ce sont des demi-paires (surrogates), impossibles à encoder en UTF-8 | Écrire les emojis en clair dans les fichiers, ou les construire avec `chr(0x1F441)`. Et ne pas passer de code contenant des antislashs par un heredoc bash : les `\\u` y sont réduits à `\u`, le remplacement ne matche jamais (script écrit avec l'outil Write, puis exécuté).
