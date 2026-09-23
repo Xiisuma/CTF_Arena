@@ -12,14 +12,15 @@ export function ChallengeCard({
   onOpen,
   onEdit,
   onDelete,
-  isAdmin,
+  canManage,
 }: {
   challenge: Challenge;
   solved: boolean;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  isAdmin: boolean;
+  /** Outils d'édition : le serveur a accordé le droit sur ce challenge. */
+  canManage: boolean;
 }) {
   const diff = getDifficulty(
     challenge.points,
@@ -57,15 +58,23 @@ export function ChallengeCard({
             {DIFFICULTY_LABELS[diff]}
           </span>
           <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs font-bold text-amber-300">
-            {challenge.points} pts
+            {challenge.currentPoints} pts
           </span>
+          {challenge.solves > 0 && (
+            <span
+              className="text-[10px] text-tertiary"
+              title={`Valeur de départ : ${challenge.points} pts — elle baisse à chaque résolution`}
+            >
+              {challenge.solves} résolution{challenge.solves > 1 ? "s" : ""}
+            </span>
+          )}
           {challenge.files && challenge.files.length > 0 && (
             <span className="text-xs text-tertiary">
               📎 {challenge.files.length}
             </span>
           )}
         </div>
-        {isAdmin && (
+        {canManage && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={(e) => {

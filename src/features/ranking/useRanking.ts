@@ -1,38 +1,28 @@
 
 import { useCallback } from "react";
-import { getRanking, getTeamRanking } from "./api";
+import { getRanking } from "./api";
 import { useFetch } from "../../shared/hooks/useFetch";
-import type { AsyncStatus, RankingRow, TeamRankingRow } from "../../types";
+import type { AsyncStatus, RankingRow } from "../../types";
 
 interface RankingData {
   ranking: RankingRow[];
-  teamRanking: TeamRankingRow[];
 }
 
 interface UseRankingResult {
   ranking: RankingRow[];
-  teamRanking: TeamRankingRow[];
   status: AsyncStatus;
   error: string | null;
 }
 
-// Fetcher stable (aucune dépendance externe) — défini au niveau module
-const INITIAL: RankingData = { ranking: [], teamRanking: [] };
+const INITIAL: RankingData = { ranking: [] };
 
 export function useRanking(): UseRankingResult {
-  const fetcher = useCallback(
-    () =>
-      Promise.all([getRanking(), getTeamRanking()]).then(([ranking, teamRanking]) => ({
-        ranking,
-        teamRanking,
-      })),
-    []
-  );
+  const fetcher = useCallback(() => getRanking().then((ranking) => ({ ranking })), []);
 
   const { data, status, error } = useFetch<RankingData>(fetcher, INITIAL, {
     errorMessage: "Impossible de charger le classement. Vérifiez votre connexion.",
   });
 
-  return { ranking: data.ranking, teamRanking: data.teamRanking, status, error };
+  return { ranking: data.ranking, status, error };
 }
 

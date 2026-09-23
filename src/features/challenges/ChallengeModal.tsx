@@ -25,6 +25,7 @@ export function ChallengeModal({
   const [flagInput, setFlagInput] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [earnedPoints, setEarnedPoints] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { setChronoRunning } = useChronoContext();
   const chrono = useChronometer();
@@ -53,6 +54,7 @@ export function ChallengeModal({
       return;
     }
     if (result.correct) {
+      setEarnedPoints(result.points ?? challenge.currentPoints);
       setSuccess(true);
       onSolved();
     } else {
@@ -61,7 +63,7 @@ export function ChallengeModal({
       setChronoRunning(true);
     }
     setSubmitting(false);
-  }, [flagInput, submitting, chrono, challenge.id, onSolved, setChronoRunning]);
+  }, [flagInput, submitting, chrono, challenge.id, challenge.currentPoints, onSolved, setChronoRunning]);
 
   const handleClose = () => {
     if (chrono.running) {
@@ -82,7 +84,10 @@ export function ChallengeModal({
               >
                 {DIFFICULTY_LABELS[diff]}
               </span>
-              <span className="text-xs text-tertiary">{challenge.points} pts</span>
+              <span className="text-xs text-tertiary">
+                {challenge.currentPoints} pts
+                {challenge.solves > 0 && ` · ${challenge.solves} résolution${challenge.solves > 1 ? "s" : ""}`}
+              </span>
             </div>
             <h2 className="text-xl font-black text-primary">{challenge.title}</h2>
           </div>
@@ -175,6 +180,18 @@ export function ChallengeModal({
               </div>
             </div>
           </div>
+          {challenge.mine && !solved && (
+            <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3">
+              <p className="text-sm font-semibold text-violet-300">
+                ✍️ Vous êtes l'auteur de ce challenge
+              </p>
+              <p className="mt-1 text-xs text-tertiary">
+                {challenge.authorLocked
+                  ? "Vos propres challenges se valident en dernier : résolvez d'abord tous ceux des autres."
+                  : "Vous avez résolu tous les challenges des autres : celui-ci est déverrouillé."}
+              </p>
+            </div>
+          )}
           {solved && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
               <p className="text-sm font-semibold text-emerald-300">
@@ -188,11 +205,11 @@ export function ChallengeModal({
                 🎉 Félicitations ! Flag correct !
               </p>
               <p className="mt-1 text-xs text-tertiary">
-                +{challenge.points} points ajoutés à votre score.
+                +{earnedPoints ?? challenge.currentPoints} points ajoutés à votre score.
               </p>
             </div>
           )}
-          {!solved && !success && (
+          {!solved && !success && !challenge.authorLocked && (
             <div>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Soumettre le flag

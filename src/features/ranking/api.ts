@@ -1,11 +1,10 @@
 
 import { apiFetch } from "../../infrastructure/api/client";
-import { normalizeTeam } from "../teams/api";
-import { RankingRowSchema, PlayerWithPointsSchema, TeamRankingRowSchema, validate, toRawArray } from "../../infrastructure/api/schemas";
-import type { RankingRow, TeamRankingRow, PlayerWithPoints } from "../../types";
+import { RankingRowSchema, PlayerWithPointsSchema, validate, toRawArray } from "../../infrastructure/api/schemas";
+import type { RankingRow, PlayerWithPoints } from "../../types";
 
 // Re-export for convenience (defined in types.ts)
-export type { RankingRow, TeamRankingRow, PlayerWithPoints };
+export type { RankingRow, PlayerWithPoints };
 
 export async function getRanking(): Promise<RankingRow[]> {
   const data = await apiFetch("get_ranking", { method: "GET" });
@@ -20,19 +19,6 @@ export async function getRanking(): Promise<RankingRow[]> {
   });
 }
 
-export async function getTeamRanking(): Promise<TeamRankingRow[]> {
-  const data = await apiFetch("get_team_ranking", { method: "GET" });
-  if (!data.ok || !Array.isArray(data.ranking)) return [];
-  return toRawArray(data.ranking).map((r) => {
-    const result = {
-      points: Number(r.points),
-      solved: Number(r.solved),
-      memberCount: Number(r.memberCount),
-    };
-    return { team: normalizeTeam(r), ...validate(TeamRankingRowSchema, result, "TeamRankingRow") };
-  });
-}
-
 export async function getPlayersWithPoints(): Promise<PlayerWithPoints[]> {
   const data = await apiFetch("get_players", { method: "GET" });
   if (!data.ok || !Array.isArray(data.players)) return [];
@@ -41,11 +27,20 @@ export async function getPlayersWithPoints(): Promise<PlayerWithPoints[]> {
       id: String(p.id),
       username: String(p.username),
       isAdmin: Boolean(p.is_admin),
+      isAuthor: Boolean(Number(p.is_author ?? 0)),
       points: Number(p.points),
       solved: Number(p.solved),
     };
     return validate(PlayerWithPointsSchema, result, "PlayerWithPoints");
   });
+}
+
+export async function setAuthorRole(userId: string, isAuthor: boolean): Promise<boolean> {
+  const data = await apiFetch("set_author_role", {
+    method: "POST",
+    body: JSON.stringify({ userId, isAuthor }),
+  });
+  return Boolean(data.ok);
 }
 
 export async function resetUserProgress(userId: string): Promise<boolean> {
@@ -60,16 +55,6 @@ export async function deleteUser(userId: string): Promise<boolean> {
 
 export async function setChallengeSolvedForUser(userId: string, challengeId: string, solved: boolean): Promise<boolean> {
   const data = await apiFetch("set_challenge_solved", { method: "POST", body: JSON.stringify({ userId, challengeId, solved }) });
-  return Boolean(data.ok);
-}
-
-export async function addBonusPoints(userId: string, points: number): Promise<boolean> {
-  const data = await apiFetch("add_bonus", { method: "POST", body: JSON.stringify({ userId, points }) });
-  return Boolean(data.ok);
-}
-
-export async function addMalusPoints(userId: string, points: number): Promise<boolean> {
-  const data = await apiFetch("add_malus", { method: "POST", body: JSON.stringify({ userId, points }) });
   return Boolean(data.ok);
 }
 
