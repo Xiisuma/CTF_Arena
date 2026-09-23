@@ -13,6 +13,7 @@ import {
   updateAchievement,
 } from "../db";
 import { useAuth } from "../features/auth/AuthContext";
+import { useViewer } from "../features/auth/playerPreview";
 import { useAchievements } from "../features/achievements/useAchievements";
 import { AchievementCard } from "../features/achievements/AchievementCard";
 import { AchievementFormModal } from "../features/achievements/AchievementFormModal";
@@ -37,6 +38,8 @@ const CARDS_GRID_CLASS: Record<CardsPerLine, string> = {
 
 export default function AchievementsPage() {
   const { user } = useAuth();
+  // Affichage seul : en aperçu, l'administrateur voit la liste côté joueur.
+  const isAdminView = useViewer()?.isAdmin ?? false;
   const [cardsPerLine, setCardsPerLine] = useState<CardsPerLine>(2);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Achievement | null>(null);
@@ -44,7 +47,7 @@ export default function AchievementsPage() {
   const { pendingConfirm, requestConfirm, closeConfirm } = useConfirm();
 
   const { achievements, userAchievements, players, status, error, refresh: forceRefresh } =
-    useAchievements(user?.id, user?.isAdmin ?? false);
+    useAchievements(user?.id, isAdminView);
 
   const myAchievements = useMemo(
     () => userAchievements.filter((ua) => ua.userId === user?.id),
@@ -115,7 +118,7 @@ export default function AchievementsPage() {
   }
 
   // ── Vue joueur ──
-  if (!user.isAdmin) {
+  if (!isAdminView) {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">

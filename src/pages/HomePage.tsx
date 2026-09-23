@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { removeChallenge, addChallenge, updateChallenge } from "../db";
 import { useAuth } from "../features/auth/AuthContext";
+import { usePlayerPreview, useViewer } from "../features/auth/playerPreview";
 import { useChallenges } from "../features/challenges/useChallenges";
 import { useSolvedChallenges } from "../features/challenges/useSolvedChallenges";
 import { ErrorMessage } from "../shared/ui/ErrorMessage";
@@ -44,6 +45,10 @@ function ScrambleCountdown({ secondsLeft }: { secondsLeft: number }) {
 
 export default function HomePage() {
   const { user } = useAuth();
+  // Affichage seul : en aperçu, l'administrateur voit la page comme un joueur.
+  const viewer = useViewer();
+  const { previewing } = usePlayerPreview();
+  const isAdminView = viewer?.isAdmin ?? false;
   const {
     categories,
     challenges,
@@ -107,9 +112,9 @@ export default function HomePage() {
   }, [categories, challenges]);
 
   const rankData = useMemo(() => {
-    if (!user || user.isAdmin) return null;
+    if (!user || isAdminView) return null;
     return getRankProgress(solvedIds.size);
-  }, [user, solvedIds.size]);
+  }, [user, isAdminView, solvedIds.size]);
 
   const handleAddChallenge = useCallback(
     async (
@@ -212,11 +217,11 @@ export default function HomePage() {
   }
 
   const secondsLeft = phaseSecondsLeft(ctfState, phase);
-  const isBlocked = (phase === "grace" || phase === "not_started") && !user.isAdmin;
+  const isBlocked = (phase === "grace" || phase === "not_started") && !isAdminView;
   // Un auteur bascule entre jouer et créer ; l'administrateur gère en permanence.
-  const isAuthoring = user.isAdmin || (user.isAuthor && authorMode);
+  const isAuthoring = isAdminView || (user.isAuthor && authorMode);
   // Avant le lancement, les joueurs ne voient ni les catégories ni les challenges
-  const isLocked = phase === "not_started" && !user.isAdmin && !user.isAuthor;
+  const isLocked = phase === "not_started" && !isAdminView && !user.isAuthor;
 
   const cardsGridClass: Record<CardsPerLine, string> = {
     1: "grid-cols-1",
@@ -247,14 +252,14 @@ export default function HomePage() {
               : status === "loading"
               ? "Chargement…"
               : `${challenges.length} challenge${challenges.length > 1 ? "s" : ""} disponible${challenges.length > 1 ? "s" : ""}${
-                  !user.isAdmin
+                  !isAdminView
                     ? ` · ${solvedIds.size} résolu${solvedIds.size > 1 ? "s" : ""}`
                     : ""
                 }`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {user.isAuthor && !user.isAdmin && (
+          {user.isAuthor && !isAdminView && (
             <button
               onClick={toggleAuthorMode}
               aria-pressed={authorMode}
@@ -288,19 +293,29 @@ export default function HomePage() {
         </div>
       </div>
 
+      {previewing && (
+        <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4">
+          <p className="text-sm font-semibold text-sky-300 mb-1">👁️ Aperçu de la vue joueur</p>
+          <p className="text-sm text-sky-200/80">
+            Affichage seul : vos droits d'administrateur sont inchangés et la
+            soumission de flags reste refusée. Rebasculez depuis la barre du haut.
+          </p>
+        </div>
+      )}
+
       {/* Bannière pré-démarrage */}
       {phase === "not_started" && (
         <div className="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4 text-center">
           <p className="text-sm font-semibold text-sky-300 mb-1">🔒 Le CTF commence bientôt</p>
           <p className="text-sky-200/80 text-sm">
-            {user.isAdmin
+            {isAdminView
               ? "Les joueurs ne voient pas encore les catégories ni les challenges."
               : "Les catégories et les challenges apparaîtront dès que l'administrateur lancera la partie."}
           </p>
         </div>
       )}
 
-      {user.isAuthor && !user.isAdmin && authorMode && (
+      {user.isAuthor && !isAdminView && authorMode && (
         <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 px-6 py-4">
           <p className="text-sm font-semibold text-violet-300 mb-1">✍️ Mode auteur activé</p>
           <p className="text-sm text-violet-200/80">
@@ -339,7 +354,7 @@ export default function HomePage() {
               <p className="text-3xl mb-2">🗂️</p>
               <p className="text-sm text-tertiary">
                 Aucune catégorie disponible.
-                {user.isAdmin
+                {isAdminView
                   ? " Créez-en dans Paramètres → Catégories."
                   : ""}
               </p>
@@ -377,13 +392,13 @@ export default function HomePage() {
                         <p className="text-xs text-tertiary">
                           {catChallenges.length} challenge
                           {catChallenges.length > 1 ? "s" : ""}
-                          {!user.isAdmin && catChallenges.length > 0 &&
+                          {!isAdminView && catChallenges.length > 0 &&
                             ` · ${catSolved}/${catChallenges.length} résolu${catSolved > 1 ? "s" : ""}`}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {!user.isAdmin && catChallenges.length > 0 && (
+                      {!isAdminView && catChallenges.length > 0 && (
                         <div className="hidden sm:flex items-center gap-2">
                           <div className="h-1.5 w-20 overflow-hidden rounded-full bg-input">
                             <div
@@ -465,6 +480,7 @@ export default function HomePage() {
         <ChallengeModal
           challenge={selectedChallenge}
           solved={solvedIds.has(selectedChallenge.id)}
+          readOnly={previewing}
           onClose={() => setSelectedChallenge(null)}
           onSolved={async () => {
             await refreshSolved();

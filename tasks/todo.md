@@ -403,3 +403,19 @@ du navigateur après un déploiement, pointant vers des bundles hashés supprim�
 - [x] `/api.php` : un seul en-tête de cache, celui de PHP
 - [x] Page chargée dans le navigateur sans erreur console ; smoke test 81 appels, 0 échec
 
+
+## Point 2 — Aperçu de la vue joueur pour l'administrateur (2026-09-23)
+
+Objectif : un bouton dans la barre de navigation qui bascule l'affichage du compte
+administrateur entre la vue admin et la vue joueur, sans toucher aux droits serveur.
+
+- [ ] Store `playerPreview` (localStorage + useSyncExternalStore) et hook `useViewer()`
+      qui renvoie l'utilisateur avec `isAdmin = false` quand l'aperçu est actif
+- [ ] Bouton de bascule dans Layout (visible uniquement pour un vrai administrateur)
+- [ ] Remplacer les tests d'affichage `user.isAdmin` par `viewer.isAdmin` :
+      Layout, HomePage, ProfilePage, AchievementsPage, PodiumPage
+- [ ] SettingsPage garde le vrai `user.isAdmin` (l'admin ne doit pas se verrouiller dehors)
+- [ ] ChallengeModal : prop `readOnly` — en aperçu, le champ de soumission est remplacé
+      par une note (le serveur refuse déjà les flags d'un admin)
+- [ ] Tests : bascule, vue joueur rendue, aucun effet pour un non-admin
+- [ ] typecheck + lint + suite complète + vérification sur stack Docker jetable

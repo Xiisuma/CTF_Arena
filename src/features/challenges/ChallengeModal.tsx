@@ -16,11 +16,14 @@ export function ChallengeModal({
   solved,
   onClose,
   onSolved,
+  readOnly = false,
 }: {
   challenge: Challenge;
   solved: boolean;
   onClose: () => void;
   onSolved: () => void;
+  /** Aperçu administrateur : le challenge se lit, il ne se soumet pas. */
+  readOnly?: boolean;
 }) {
   const [flagInput, setFlagInput] = useState("");
   const [error, setError] = useState("");
@@ -209,7 +212,17 @@ export function ChallengeModal({
               </p>
             </div>
           )}
-          {!solved && !success && !challenge.authorLocked && (
+          {readOnly && !solved && (
+            <div className="rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3">
+              <p className="text-sm font-semibold text-sky-300">
+                👁️ Aperçu de la vue joueur
+              </p>
+              <p className="mt-1 text-xs text-tertiary">
+                Voici ce que voit un joueur. Les administrateurs ne soumettent pas de flags.
+              </p>
+            </div>
+          )}
+          {!readOnly && !solved && !success && !challenge.authorLocked && (
             <div>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-tertiary">
                 Soumettre le flag
