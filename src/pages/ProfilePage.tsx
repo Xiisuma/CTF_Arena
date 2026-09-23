@@ -7,6 +7,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getChallenges, getUserFlags } from "../features/challenges/api";
 import { useAuth } from "../features/auth/AuthContext";
+import { useViewer } from "../features/auth/playerPreview";
 import { getRankProgress } from "../features/ranking/ranks";
 import { StatCard, StatsContent } from "../features/profile/ProfileCharts";
 import { FlagsSection } from "../features/profile/FlagsSection";
@@ -21,6 +22,8 @@ const PROFILE_TABS = new Set<ProfileTab>(["flags", "attempts", "stats", "friends
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
+  // Affichage seul : en aperçu, l'administrateur voit son profil côté joueur.
+  const isAdminView = useViewer()?.isAdmin ?? false;
   const [searchParams, setSearchParams] = useSearchParams();
   const [flags, setFlags] = useState<FlagSubmission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,14 +91,14 @@ export default function ProfilePage() {
               <span className={`text-sm font-bold ${rank.textColor}`}>
                 {rank.icon} {rank.label}
               </span>
-              {user.isAdmin && (
+              {isAdminView && (
                 <span className="text-xs text-tertiary">· Administrateur</span>
               )}
             </div>
           </div>
         </div>
 
-        {!user.isAdmin && nextRank && (
+        {!isAdminView && nextRank && (
           <div className="mt-5">
             <div className="mb-1 flex justify-between text-[11px] text-tertiary">
               <span>{rank.icon} {rank.label}</span>
@@ -113,7 +116,7 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
-        {!user.isAdmin && !nextRank && (
+        {!isAdminView && !nextRank && (
           <p className={`mt-3 text-xs font-bold ${rank.textColor}`}>
             🎉 Rang maximum atteint !
           </p>
@@ -150,8 +153,8 @@ export default function ProfilePage() {
       </div>
 
       {tab === "flags" && <FlagsSection flags={flags} />}
-      {tab === "attempts" && !user.isAdmin && <AttemptsSection />}
-      {tab === "attempts" && user.isAdmin && (
+      {tab === "attempts" && !isAdminView && <AttemptsSection />}
+      {tab === "attempts" && isAdminView && (
         <div className="rounded-2xl border border-primary bg-card p-6 text-center">
           <p className="text-sm text-tertiary">
             Les administrateurs ne soumettent pas de flags : aucun essai à afficher.

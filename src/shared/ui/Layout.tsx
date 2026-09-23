@@ -7,6 +7,7 @@ import { type ReactNode } from "react";
 import { ThemeToggle } from "./ThemeToggle";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
+import { usePlayerPreview, useViewer } from "../../features/auth/playerPreview";
 import { useTheme } from "./ThemeContext";
 import { useCurrentUserRank } from "../../features/ranking/useCurrentUserRank";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
@@ -21,13 +22,18 @@ const navItems = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const viewer = useViewer();
+  const { previewing, available: canPreview, toggle: togglePreview } = usePlayerPreview();
   const { resolvedTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const rank = useCurrentUserRank(user);
+  const rank = useCurrentUserRank(viewer);
 
   if (!user) return <>{children}</>;
+
+  // Affichage seul : en aperçu, l'administrateur voit l'interface d'un joueur.
+  const isAdminView = viewer?.isAdmin ?? false;
 
   const isProfilePage = location.pathname === "/profile";
 
@@ -58,7 +64,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             </Link>
             <div className="hidden items-center gap-2 sm:flex">
               {navItems
-                .filter((item) => !item.adminOnly || user.isAdmin)
+                .filter((item) => !item.adminOnly || isAdminView)
                 .map((item) => {
                   const active = location.pathname === item.to;
                   return (
@@ -83,7 +89,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <ThemeToggle />
 
             {/* Cloche notifications */}
-            {!user.isAdmin && (
+            {!isAdminView && (
               <NotificationBell
                 onOpenPage={() => navigate("/notifications")}
               />
@@ -118,10 +124,30 @@ export default function Layout({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
-            {user.isAdmin && (
+            {isAdminView && (
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
                 Admin
               </span>
+            )}
+
+            {/* Aperçu joueur — bascule d'affichage, aucun droit modifié */}
+            {canPreview && (
+              <button
+                onClick={togglePreview}
+                aria-pressed={previewing}
+                title={
+                  previewing
+                    ? "Revenir à la vue administrateur"
+                    : "Voir l'interface telle que la voient les joueurs"
+                }
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition ${
+                  previewing
+                    ? "border-sky-500/40 bg-sky-500/20 text-sky-200 hover:bg-sky-500/30"
+                    : "border-primary bg-card text-tertiary hover:text-secondary"
+                }`}
+              >
+                {previewing ? "👁️ Vue joueur" : "👁️ Aperçu joueur"}
+              </button>
             )}
 
             {isProfilePage && (
@@ -138,7 +164,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         {/* Nav mobile */}
         <div className="mx-auto flex max-w-7xl gap-2 px-4 pb-3 sm:hidden sm:px-6">
           {navItems
-            .filter((item) => !item.adminOnly || user.isAdmin)
+            .filter((item) => !item.adminOnly || isAdminView)
             .map((item) => {
               const active = location.pathname === item.to;
               return (

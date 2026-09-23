@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getPodium, setCTFState } from "../features/ctf/api";
 import type { PodiumData } from "../features/ctf/api";
-import { useAuth } from "../features/auth/AuthContext";
+import { useViewer } from "../features/auth/playerPreview";
 import { useCTFState } from "../features/ctf/useCTFState";
 
 // Ordre d'affichage (top → bottom). La révélation se fait dans l'ordre inverse
@@ -51,7 +51,8 @@ function buildSlots(data: PodiumData): Array<{ rank: number; label: string; emoj
 }
 
 export default function PodiumPage() {
-  const { user } = useAuth();
+  // Affichage seul : le bouton de révélation disparaît pendant l'aperçu joueur.
+  const isAdminView = useViewer()?.isAdmin ?? false;
   const { ctfState } = useCTFState();
   const revealed = ctfState.podiumRevealed; // synchronisé via WebSocket sur tous les navigateurs
 
@@ -136,7 +137,7 @@ export default function PodiumPage() {
         })}
       </div>
 
-      {user?.isAdmin && revealed < SLOT_COUNT && (
+      {isAdminView && revealed < SLOT_COUNT && (
         <div className="flex justify-center">
           <button
             onClick={handleReveal}
