@@ -27,6 +27,8 @@ export interface AuthUser {
   isAdmin: boolean;
   /** Peut créer des challenges et ne gérer que les siens. */
   isAuthor: boolean;
+  /** Adresse confirmée par un code reçu par courriel. */
+  emailVerified: boolean;
   avatarEmoji: string;
   bio: string;
   // password n'est jamais renvoyé par l'API — ne pas l'inclure dans le type client
@@ -104,6 +106,7 @@ interface RawApiUser {
   gender?: string | null;
   isAdmin?: boolean;
   isAuthor?: boolean;
+  emailVerified?: boolean;
   avatarEmoji?: string;
   avatar_emoji?: string;
   bio?: string;
@@ -118,6 +121,7 @@ function normalizeUser(raw: RawApiUser): AuthUser {
     gender: (raw.gender as AuthUser["gender"]) ?? null,
     isAdmin: Boolean(raw.isAdmin),
     isAuthor: Boolean(raw.isAuthor),
+    emailVerified: Boolean(raw.emailVerified),
     avatarEmoji: (raw.avatarEmoji ?? raw.avatar_emoji ?? '🎯'),
     bio: raw.bio ?? '',
     createdAt: new Date().toISOString(),

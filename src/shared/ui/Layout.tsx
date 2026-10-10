@@ -11,6 +11,7 @@ import { usePlayerPreview, useViewer } from "../../features/auth/playerPreview";
 import { useTheme } from "./ThemeContext";
 import { useCurrentUserRank } from "../../features/ranking/useCurrentUserRank";
 import { NotificationBell } from "../../features/notifications/NotificationBell";
+import { EmailVerificationBanner } from "../../features/profile/EmailVerificationBanner";
 
 const navItems = [
   { to: "/", label: "Challenges", icon: "🏴", adminOnly: false },
@@ -183,6 +184,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             })}
         </div>
       </nav>
+
+      <EmailVerificationBanner />
 
       <main className="relative mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {children}
