@@ -56,6 +56,18 @@ export default function AchievementsPage() {
     [userAchievements, user]
   );
 
+  // Les succès encore mystérieux ferment la marche : les cartes « ❓ » ne
+  // coupent plus la liste des succès lisibles. Un succès caché débloqué n'est
+  // plus masqué (isLocked passe à false) et reprend sa place habituelle.
+  // Côté administrateur hors aperçu, rien n'est masqué : l'ordre ne bouge pas.
+  const orderedAchievements = useMemo(
+    () =>
+      [...achievements].sort(
+        (a, b) => Number(a.isLocked) - Number(b.isLocked)
+      ),
+    [achievements]
+  );
+
   const handleSave = useCallback(
     async (a: Achievement) => {
       setMutationError(null);
@@ -151,7 +163,7 @@ export default function AchievementsPage() {
             </div>
           </div>
         </div>
-        {achievements.length === 0 ? (
+        {orderedAchievements.length === 0 ? (
           <EmptyState
             icon="🎖️"
             message="Aucun succès disponible pour le moment."
@@ -159,7 +171,7 @@ export default function AchievementsPage() {
           />
         ) : (
           <div className={`grid gap-4 ${CARDS_GRID_CLASS[cardsPerLine]}`}>
-            {achievements.map((a) => {
+            {orderedAchievements.map((a) => {
               const ua = myAchievements.find((x) => x.achievementId === a.id);
               return (
                 <AchievementCard
@@ -218,7 +230,7 @@ export default function AchievementsPage() {
             hint="Utilisez le formulaire ci-dessus pour en ajouter."
           />
         )}
-        {achievements.map((a) => (
+        {orderedAchievements.map((a) => (
           <div
             key={a.id}
             className="flex items-center gap-4 rounded-2xl border border-primary bg-card px-5 py-4 shadow-theme"
