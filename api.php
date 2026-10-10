@@ -2189,6 +2189,9 @@ switch ($action) {
 
     // Un succès caché ne révèle ni son nom ni sa condition tant que le joueur
     // ne l'a pas débloqué : le masquage se fait ici, pas dans l'interface.
+    // asPlayer=1 : l'administrateur demande la liste telle que la voit un joueur
+    // (aperçu de la vue joueur). Cela ne fait que masquer davantage, jamais moins.
+    $asPlayer = ($_GET["asPlayer"] ?? "") === "1";
     $mineStmt = $pdo->prepare(
       "SELECT DISTINCT achievement_id FROM user_achievements WHERE user_id = ?",
     );
@@ -2197,9 +2200,9 @@ switch ($action) {
 
     json_response([
       "ok" => true,
-      "achievements" => array_map(function ($r) use ($mine, $auth) {
+      "achievements" => array_map(function ($r) use ($mine, $auth, $asPlayer) {
         $hidden = (bool) $r["is_hidden"];
-        $revealed = $auth["is_admin"] || isset($mine[$r["id"]]);
+        $revealed = ($auth["is_admin"] && !$asPlayer) || isset($mine[$r["id"]]);
         if ($hidden && !$revealed) {
           return [
             "id" => $r["id"],

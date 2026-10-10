@@ -23,8 +23,16 @@ function normalizeAchievement(raw: Record<string, unknown>): Achievement {
   return validate(AchievementSchema, result, "Achievement");
 }
 
-export async function getAchievements(): Promise<Achievement[]> {
-  const data = await apiFetch("get_achievements", { method: "GET" });
+/**
+ * @param asPlayer Aperçu de la vue joueur : un administrateur reçoit alors la
+ * liste masquée exactement comme un joueur, succès cachés compris.
+ */
+export async function getAchievements(asPlayer = false): Promise<Achievement[]> {
+  const data = await apiFetch(
+    "get_achievements",
+    { method: "GET" },
+    asPlayer ? { asPlayer: "1" } : {}
+  );
   if (!data.ok || !Array.isArray(data.achievements)) return [];
   return toRawArray(data.achievements).map(normalizeAchievement);
 }
