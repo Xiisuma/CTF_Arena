@@ -431,3 +431,15 @@ repose sur `$auth["is_admin"]` et que la session reste celle d'un administrateur
 - [x] AchievementsPage passe `previewing` au hook
 - [x] Tests : paramètre absent par défaut, présent en aperçu (105/105 au total)
 - [x] `php -l` sur api.php dans le conteneur backend, typecheck, lint
+
+## Point 7 — le 1er du classement jamais révélé sur le podium (2026-10-11)
+
+Cause racine : `set_ctf_state` refusait `podium_revealed` au-delà de 4, alors que le
+podium compte 5 emplacements depuis l'ajout de « Joueur avec le plus de succès ».
+Le 5e clic renvoyait « Valeur invalide », donc l'emplacement du 1er restait masqué.
+
+- [x] Constante `PODIUM_SLOT_COUNT` (5) dans api.php, utilisée par la validation
+- [x] Commentaire croisé avec `SLOT_LABELS` de src/pages/PodiumPage.tsx
+- [x] Tests PodiumPage : 1er masqué à 4, révélé à 5, valeur « 5 » envoyée au dernier clic,
+      bouton retiré une fois tout dévoilé
+- [x] typecheck, lint, suite complète (109/109)

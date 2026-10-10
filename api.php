@@ -98,6 +98,12 @@ define("FLAG_ATTEMPT_MAX", (int) (getenv("FLAG_ATTEMPT_MAX") ?: 5));
 define("SCORING_DECAY_SOLVES", max(1, (int) (getenv("SCORING_DECAY_SOLVES") ?: 12)));
 define("SCORING_FLOOR_PERCENT", min(100, max(0, (int) (getenv("SCORING_FLOOR_PERCENT") ?: 25))));
 define("FLAG_ATTEMPT_WINDOW", (int) (getenv("FLAG_ATTEMPT_WINDOW") ?: 60)); // 1 minute
+
+// ─── Podium ──────────────────────────────────────────────────────────────────
+// Emplacements révélés un par un : 1er, 2e, 3e, le plus de flags, le plus de
+// succès. Doit rester aligné sur SLOT_LABELS dans src/pages/PodiumPage.tsx —
+// un plafond trop bas empêche de révéler le haut du podium.
+define("PODIUM_SLOT_COUNT", 5);
 // Créations de comptes par IP. Compteur distinct de celui des connexions : sur
 // un événement sur site, tous les joueurs partagent l'IP publique du lieu, et
 // une limite calquée sur celle du brute-force bloquerait les inscriptions.
@@ -2938,7 +2944,9 @@ switch ($action) {
     }
     if (
       $key === "podium_revealed" &&
-      (!ctype_digit($value) || (int) $value < 0 || (int) $value > 4)
+      (!ctype_digit($value) ||
+        (int) $value < 0 ||
+        (int) $value > PODIUM_SLOT_COUNT)
     ) {
       json_error("Valeur invalide");
     }
