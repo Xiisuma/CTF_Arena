@@ -107,7 +107,11 @@ define("PODIUM_SLOT_COUNT", 5);
 // Créations de comptes par IP. Compteur distinct de celui des connexions : sur
 // un événement sur site, tous les joueurs partagent l'IP publique du lieu, et
 // une limite calquée sur celle du brute-force bloquerait les inscriptions.
-define("REGISTER_MAX", (int) (getenv("REGISTER_MAX") ?: 30));
+// Sur site, tous les joueurs partagent l'IP publique du lieu : ce compteur
+// borne les inscriptions de la salle entière, pas celles d'une personne.
+// 200 par heure laisse passer une cinquantaine de joueurs et leurs reprises,
+// tout en coupant un script qui en tenterait des milliers.
+define("REGISTER_MAX", (int) (getenv("REGISTER_MAX") ?: 200));
 define("REGISTER_WINDOW", (int) (getenv("REGISTER_WINDOW") ?: 3600)); // 1 heure
 
 // ─── Headers ──────────────────────────────────────────────────────────────────
