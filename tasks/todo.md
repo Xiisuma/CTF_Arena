@@ -419,3 +419,15 @@ administrateur entre la vue admin et la vue joueur, sans toucher aux droits serv
       par une note (le serveur refuse déjà les flags d'un admin)
 - [x] Tests : bascule, vue joueur rendue, aucun effet pour un non-admin
 - [x] typecheck + lint + suite complète + vérification sur stack Docker jetable
+
+## Correctif — succès cachés visibles en aperçu joueur (2026-10-10)
+
+Signalé par Axel : en aperçu de la vue joueur, la page Succès affichait les succès
+cachés avec leur nom et leur description, parce que le masquage de `get_achievements`
+repose sur `$auth["is_admin"]` et que la session reste celle d'un administrateur.
+
+- [x] `get_achievements` accepte `asPlayer=1` : l'administrateur reçoit la liste masquée
+- [x] `getAchievements(asPlayer)` côté client, transmis par `useAchievements`
+- [x] AchievementsPage passe `previewing` au hook
+- [x] Tests : paramètre absent par défaut, présent en aperçu (105/105 au total)
+- [x] `php -l` sur api.php dans le conteneur backend, typecheck, lint

@@ -28,16 +28,17 @@ const INITIAL: AchievementsData = {
 
 export function useAchievements(
   userId: string | undefined,
-  isAdmin: boolean
+  isAdmin: boolean,
+  asPlayer = false
 ): UseAchievementsResult {
   const fetcher = useCallback(async () => {
     const [achievements, userAchievements, players] = await Promise.all([
-      getAchievements(),
+      getAchievements(asPlayer),
       getAllUserAchievements(),
       isAdmin ? getPlayersWithPoints() : Promise.resolve([]),
     ]);
     return { achievements, userAchievements, players };
-  }, [isAdmin]);
+  }, [isAdmin, asPlayer]);
 
   const { data, status, error, refresh } = useFetch<AchievementsData>(
     fetcher,

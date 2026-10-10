@@ -13,7 +13,7 @@ import {
   updateAchievement,
 } from "../db";
 import { useAuth } from "../features/auth/AuthContext";
-import { useViewer } from "../features/auth/playerPreview";
+import { usePlayerPreview, useViewer } from "../features/auth/playerPreview";
 import { useAchievements } from "../features/achievements/useAchievements";
 import { AchievementCard } from "../features/achievements/AchievementCard";
 import { AchievementFormModal } from "../features/achievements/AchievementFormModal";
@@ -38,8 +38,10 @@ const CARDS_GRID_CLASS: Record<CardsPerLine, string> = {
 
 export default function AchievementsPage() {
   const { user } = useAuth();
-  // Affichage seul : en aperçu, l'administrateur voit la liste côté joueur.
+  // Affichage seul : en aperçu, l'administrateur voit la liste côté joueur,
+  // succès cachés masqués compris — c'est le serveur qui les masque.
   const isAdminView = useViewer()?.isAdmin ?? false;
+  const { previewing } = usePlayerPreview();
   const [cardsPerLine, setCardsPerLine] = useState<CardsPerLine>(2);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Achievement | null>(null);
@@ -47,7 +49,7 @@ export default function AchievementsPage() {
   const { pendingConfirm, requestConfirm, closeConfirm } = useConfirm();
 
   const { achievements, userAchievements, players, status, error, refresh: forceRefresh } =
-    useAchievements(user?.id, isAdminView);
+    useAchievements(user?.id, isAdminView, previewing);
 
   const myAchievements = useMemo(
     () => userAchievements.filter((ua) => ua.userId === user?.id),
