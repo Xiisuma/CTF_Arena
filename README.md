@@ -145,13 +145,48 @@ PORT=3000
 # ─── Build Vite ───────────────────────────────────────────────
 VITE_API_URL=/api.php
 
-# ─── SMTP (optionnel — reset de mot de passe par email) ───────
-# SMTP_HOST=smtp.gmail.com
+# ─── SMTP (reset de mot de passe, confirmation d'adresse) ─────
+# SMTP_HOST=smtp-relay.brevo.com
 # SMTP_PORT=587
-# SMTP_USER=votre@email.com
-# SMTP_PASSWORD=mot_de_passe_app
-# SMTP_FROM=noreply@ctf-arena.local
+# SMTP_USER=votre_identifiant_brevo
+# SMTP_PASSWORD=votre_cle_smtp
+# SMTP_FROM=noreply@votre-domaine.fr
+# SMTP_SECURE=tls              # tls (STARTTLS) | ssl (port 465) | none
+
+# ─── Confirmation de l'adresse email ──────────────────────────
+# EMAIL_VERIFICATION=soft      # off | soft | strict
 ```
+
+### Envoi de courriel
+
+Les courriels passent par un serveur SMTP externe : l'image backend n'embarque
+aucun agent de mail, donc **sans `SMTP_USER` ni `SMTP_PASSWORD`, rien ne part**.
+La panne est écrite dans `misc.log` et l'inscription se poursuit normalement.
+
+Un compte gratuit chez Brevo (≈300 courriels par jour) ou Mailjet suffit
+largement pour un événement. Une fois les identifiants placés dans `.env` :
+
+```bash
+docker compose exec backend php /usr/local/bin/ctf-test-mail.php vous@exemple.fr
+```
+
+Le script emprunte exactement le chemin d'envoi de l'application : si ce message
+arrive, les codes de confirmation arriveront aussi.
+
+### Confirmation de l'adresse email
+
+À l'inscription, un code à six chiffres part vers le joueur. Il est stocké
+uniquement sous forme d'empreinte HMAC, valable 15 minutes, 5 essais, avec
+60 secondes entre deux envois.
+
+| `EMAIL_VERIFICATION` | Effet |
+|---|---|
+| `off` | aucune vérification |
+| `soft` *(défaut)* | code envoyé, compte marqué non confirmé, rien n'est bloqué |
+| `strict` | pas de soumission de flag tant que l'adresse n'est pas confirmée |
+
+`strict` ne s'active qu'après avoir testé l'envoi depuis le lieu de
+l'événement : un code qui n'arrive pas bloque un joueur.
 
 ### Générer des clés sécurisées
 
