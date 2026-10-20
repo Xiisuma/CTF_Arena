@@ -68,6 +68,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-noreply@ctf-arena.local}
+      SMTP_SECURE: ${SMTP_SECURE:-tls}
+
+      # Confirmation de l'adresse email : off | soft | strict
+      #   soft   — code envoyé, compte marqué non vérifié, rien n'est bloqué
+      #   strict — pas de soumission de flag tant que l'adresse n'est pas confirmée
+      EMAIL_VERIFICATION: ${EMAIL_VERIFICATION:-soft}
 
       # État du CTF au démarrage (game_started, brouillage, podium, thème) :
       #   auto — remis à zéro quand le conteneur est recréé (rebuild), conservé

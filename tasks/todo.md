@@ -443,3 +443,18 @@ Le 5e clic renvoyait « Valeur invalide », donc l'emplacement du 1er restait ma
 - [x] Tests PodiumPage : 1er masqué à 4, révélé à 5, valeur « 5 » envoyée au dernier clic,
       bouton retiré une fois tout dévoilé
 - [x] typecheck, lint, suite complète (109/109)
+
+## Points 8 et 6 — plafond d'inscriptions, puis confirmation d'adresse (2026-10-11)
+
+- [x] Point 8 : `REGISTER_MAX` par défaut à 200 par heure (api.php, docker-compose.yml,
+      .env.example), vérifié par 50 inscriptions d'affilée depuis une seule IP
+- [x] `mailer.php` : client SMTP sans dépendance (STARTTLS, TLS implicite, AUTH LOGIN),
+      `SMTP_SECURE` = tls | ssl | none, pannes journalisées dans misc.log
+- [x] `send_reset_email` passe par SMTP au lieu de `mail()`, qui n'envoyait rien
+- [x] Code à six chiffres : table `email_verifications` (empreinte HMAC, expiration
+      15 min, 5 essais, délai de 60 s entre deux envois, 5 envois par heure)
+- [x] `EMAIL_VERIFICATION` = off | soft | strict ; en strict, pas de flag tant que
+      l'adresse n'est pas confirmée
+- [x] Bandeau de saisie du code dans l'interface, `emailVerified` exposé par l'API
+- [x] Parcours complet contre Mailpit : 15 contrôles, 0 échec
+- [x] typecheck, lint, suite complète (120/120), `php -l` sur les trois fichiers PHP

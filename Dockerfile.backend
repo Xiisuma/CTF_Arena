@@ -11,6 +11,9 @@ RUN a2enmod rewrite
 COPY api.php  /var/www/html/api.php
 COPY init.php /var/www/html/init.php
 COPY achievements_catalogue.php /var/www/html/achievements_catalogue.php
+COPY mailer.php /var/www/html/mailer.php
+# Outil d'administration : hors de la racine web, inatteignable par HTTP
+COPY test-mail.php /usr/local/bin/ctf-test-mail.php
 # Le schema.sql est monté via docker-compose (volume), pas copié ici
 # Il reste dans sql/ sur l'hôte, protégé par .htaccess
 

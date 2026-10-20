@@ -295,6 +295,26 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS flag_attempts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 echo "[init] Table flag_attempts vérifiée.\n";
 
+// ─── Confirmation de l'adresse email ─────────────────────────────────────────
+// Un code à six chiffres envoyé par courriel. Le code n'est jamais stocké en
+// clair : seule son empreinte HMAC est conservée, avec une expiration et un
+// compteur d'essais.
+try {
+    $pdo->exec("ALTER TABLE users ADD COLUMN email_verified TINYINT(1) NOT NULL DEFAULT 0");
+    echo "[init] Colonne users.email_verified ajoutée.\n";
+} catch (Exception $e) {
+    echo "[init] users.email_verified déjà présente.\n";
+}
+$pdo->exec("CREATE TABLE IF NOT EXISTS email_verifications (
+    user_id    INT UNSIGNED NOT NULL PRIMARY KEY,
+    code_hash  CHAR(64)     NOT NULL,
+    expires_at DATETIME     NOT NULL,
+    attempts   INT UNSIGNED NOT NULL DEFAULT 0,
+    sent_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_email_verifications_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+echo "[init] Table email_verifications vérifiée.\n";
+
 // ─── Vues SQL (idempotentes) ──────────────────────────────────────────────────
 // CREATE OR REPLACE VIEW s'exécute à chaque démarrage du conteneur, ce qui
 // garantit que les vues existent même sur une DB créée avant leur introduction

@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS users (
     is_admin      TINYINT(1)       NOT NULL DEFAULT 0,
     is_author     TINYINT(1)       NOT NULL DEFAULT 0
                   COMMENT 'Peut créer des challenges et ne gérer que les siens',
+    email_verified TINYINT(1)      NOT NULL DEFAULT 0
+                  COMMENT 'Adresse confirmée par un code reçu par courriel',
     clean_streak  INT UNSIGNED     NOT NULL DEFAULT 0
                   COMMENT 'Validations d’affilée sans flag faux (succès Sans faute)',
     was_bottom_half TINYINT(1)     NOT NULL DEFAULT 0
@@ -155,6 +157,20 @@ CREATE TABLE IF NOT EXISTS flag_attempts (
     CONSTRAINT fk_flag_attempts_challenges FOREIGN KEY (challenge_id) REFERENCES challenges(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='Flags erronés tentés par un joueur sur un challenge non résolu.';
+
+-- ─── Confirmation de l'adresse email ──────────────────────────────────────────
+-- Un seul code vivant par compte. Le code n'est jamais stocké en clair : seule
+-- son empreinte HMAC l'est, avec une expiration et un compteur d'essais.
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+    user_id    INT UNSIGNED NOT NULL PRIMARY KEY,
+    code_hash  CHAR(64)     NOT NULL,
+    expires_at DATETIME     NOT NULL,
+    attempts   INT UNSIGNED NOT NULL DEFAULT 0,
+    sent_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_email_verifications_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Codes de confirmation d''adresse email, hachés et expirables.';
 
 -- ─── Achievements ─────────────────────────────────────────────────────────────
 

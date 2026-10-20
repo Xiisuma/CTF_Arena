@@ -82,7 +82,36 @@ define("SMTP_USER", getenv("SMTP_USER") ?: "");
 define("SMTP_PASSWORD", getenv("SMTP_PASSWORD") ?: "");
 define("SMTP_FROM", getenv("SMTP_FROM") ?: "noreply@ctf-arena.local");
 define("SMTP_FROM_NAME", "CTF Arena");
+// Chiffrement SMTP : tls (STARTTLS, défaut), ssl (TLS implicite, port 465),
+// none (clair — uniquement pour un serveur de test local).
+$_smtpSecure = strtolower((string) (getenv("SMTP_SECURE") ?: "tls"));
+if (!in_array($_smtpSecure, ["tls", "ssl", "none"], true)) {
+  $_smtpSecure = "tls";
+}
+define("SMTP_SECURE", $_smtpSecure);
 define("FRONTEND_URL", getenv("FRONTEND_URL") ?: "http://localhost:3000");
+
+// ─── Vérification de l'adresse email ────────────────────────────────────────
+//   off    — aucune vérification
+//   soft   — le joueur reçoit un code, son compte est marqué non vérifié,
+//            mais rien ne le bloque (défaut : un code perdu ne gâche pas
+//            une session de deux heures)
+//   strict — tant que l'adresse n'est pas confirmée, les flags sont refusés
+$_emailVerification = getenv("EMAIL_VERIFICATION");
+if ($_emailVerification === false || $_emailVerification === "") {
+  $_emailVerification = "soft";
+}
+if (!in_array($_emailVerification, ["off", "soft", "strict"], true)) {
+  $_emailVerification = "soft";
+}
+define("EMAIL_VERIFICATION", $_emailVerification);
+// Durée de vie d'un code, délai minimum entre deux envois, essais autorisés.
+define("EMAIL_CODE_TTL", 900); // 15 minutes
+define("EMAIL_CODE_COOLDOWN", 60);
+define("EMAIL_CODE_MAX_ATTEMPTS", 5);
+define("EMAIL_CODE_MAX_SENDS", 5); // par heure et par compte
+
+require_once __DIR__ . "/mailer.php";
 
 // Réglables par variable d'environnement : pendant un événement, les seuils
 // utiles ne sont pas les mêmes qu'en exploitation normale.
@@ -1065,24 +1094,67 @@ function send_reset_email(string $to_email, string $to_name, string $token): boo
   $reset_url = FRONTEND_URL . "/reset-password?token=" . urlencode($token);
   $safe_name = htmlspecialchars($to_name, ENT_QUOTES, "UTF-8");
   $safe_url = htmlspecialchars($reset_url, ENT_QUOTES, "UTF-8");
-  $subject =
-    "=?UTF-8?B?" . base64_encode("🔐 Réinitialisation de votre mot de passe CTF Arena") . "?=";
-  $headers =
-    "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nFrom: " .
-    SMTP_FROM_NAME .
-    " <" .
-    SMTP_FROM .
-    ">";
-  $body =
-    "<html><body style='background:#0a0a1a;font-family:system-ui,sans-serif;padding:40px'>" .
-    "<div style='max-width:520px;margin:auto;background:#0f0f2a;border:1px solid rgba(139,92,246,0.2);border-radius:16px;padding:32px'>" .
-    "<h1 style='color:#fff'>🏴 CTF Arena</h1>" .
-    "<p style='color:rgba(196,181,253,0.9)'>Bonjour <strong>$safe_name</strong>,</p>" .
-    "<p style='color:rgba(196,181,253,0.7)'>Cliquez ci-dessous pour réinitialiser votre mot de passe.</p>" .
-    "<a href='$safe_url' style='display:inline-block;background:#8b5cf6;color:#fff;padding:14px 32px;border-radius:12px;font-weight:700;text-decoration:none;margin:16px 0'>Réinitialiser</a>" .
-    "<p style='color:rgba(196,181,253,0.5);font-size:12px'>Ce lien expire dans 1 heure.</p>" .
-    "</div></body></html>";
-  return mail($to_email, $subject, $body, $headers);
+  $body = mail_template(
+    "Bonjour $safe_name,",
+    "Vous avez demandé à réinitialiser votre mot de passe. Le bouton ci-dessous ouvre la page de changement.",
+    mail_button($safe_url, "Réinitialiser mon mot de passe"),
+    "Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé."
+  );
+  return send_mail_smtp(
+    $to_email,
+    $to_name,
+    "🔐 Réinitialisation de votre mot de passe CTF Arena",
+    $body
+  );
+}
+
+/** Courriel de confirmation d'adresse : un code à six chiffres. */
+function send_verification_email(string $to_email, string $to_name, string $code): bool
+{
+  $safe_name = htmlspecialchars($to_name, ENT_QUOTES, "UTF-8");
+  $minutes = (int) (EMAIL_CODE_TTL / 60);
+  $body = mail_template(
+    "Bonjour $safe_name,",
+    "Voici le code qui confirme votre adresse sur CTF Arena. Saisissez-le dans le bandeau affiché en haut de la plateforme.",
+    mail_code_block($code),
+    "Ce code expire dans $minutes minutes et ne sert qu'une fois. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message."
+  );
+  return send_mail_smtp($to_email, $to_name, "🔑 Votre code de confirmation CTF Arena", $body);
+}
+
+/** Vrai si le compte doit confirmer son adresse avant de jouer. */
+function email_verification_blocks(PDO $pdo, int $userId): bool
+{
+  if (EMAIL_VERIFICATION !== "strict") {
+    return false;
+  }
+  $stmt = $pdo->prepare("SELECT email_verified FROM users WHERE id = ? LIMIT 1");
+  $stmt->execute([$userId]);
+  return !(bool) $stmt->fetchColumn();
+}
+
+
+/**
+ * Émet un code de confirmation : un code à six chiffres, stocké haché, valable
+ * EMAIL_CODE_TTL secondes. Un seul code vivant par compte — un nouvel envoi
+ * remplace le précédent et remet le compteur d'essais à zéro.
+ */
+function issue_verification_code(
+  PDO $pdo,
+  int $userId,
+  string $email,
+  string $username
+): bool {
+  $code = str_pad((string) random_int(0, 999999), 6, "0", STR_PAD_LEFT);
+  $pdo
+    ->prepare(
+      "INSERT INTO email_verifications (user_id, code_hash, expires_at, attempts, sent_at)
+       VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND), 0, NOW())
+       ON DUPLICATE KEY UPDATE code_hash = VALUES(code_hash),
+         expires_at = VALUES(expires_at), attempts = 0, sent_at = NOW()",
+    )
+    ->execute([$userId, hash_hmac("sha256", $code, RESET_SECRET), EMAIL_CODE_TTL]);
+  return send_verification_email($email, $username, $code);
 }
 
 // ─── Fichiers challenge ───────────────────────────────────────────────────────
@@ -1292,6 +1364,11 @@ switch ($action) {
     $_SESSION["is_admin"] = false;
     generate_csrf_token();
 
+    if (EMAIL_VERIFICATION !== "off") {
+      // Envoi au fil de l'inscription : un échec SMTP ne doit pas refuser le
+      // compte, le joueur pourra redemander un code depuis son profil.
+      issue_verification_code($pdo, (int) $user_id, $email, $username);
+    }
     log_activity("register_success", (int) $user_id, $username);
     notify_ws("players");
     json_response([
@@ -1306,6 +1383,7 @@ switch ($action) {
         "bio" => "",
         "isAdmin" => false,
         "isAuthor" => false,
+        "emailVerified" => false,
       ],
       "csrf" => $_SESSION["csrf_token"],
     ]);
@@ -1355,7 +1433,8 @@ switch ($action) {
       json_error("Veuillez entrer une adresse email valide");
     }
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, password_hash, age, gender, avatar_emoji, bio, is_author FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
+      "SELECT id, username, email, password_hash, age, gender, avatar_emoji, bio, is_author, email_verified
+       FROM users WHERE email = ? AND is_admin = 0 LIMIT 1",
     );
     $stmt->execute([strtolower($identifier)]);
     $user = $stmt->fetch();
@@ -1396,6 +1475,7 @@ switch ($action) {
         "bio" => $user["bio"],
         "isAdmin" => false,
         "isAuthor" => (bool) $user["is_author"],
+        "emailVerified" => (bool) $user["email_verified"],
       ],
       "csrf" => $_SESSION["csrf_token"],
     ]);
@@ -1425,7 +1505,8 @@ switch ($action) {
     }
     $pdo = get_pdo();
     $stmt = $pdo->prepare(
-      "SELECT id, username, email, age, gender, avatar_emoji, bio, is_admin, is_author FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, username, email, age, gender, avatar_emoji, bio, is_admin, is_author, email_verified
+       FROM users WHERE id = ? LIMIT 1",
     );
     $stmt->execute([$_SESSION["user_id"]]);
     $user = $stmt->fetch();
@@ -1447,9 +1528,84 @@ switch ($action) {
         "bio" => $user["bio"],
         "isAdmin" => (bool) $user["is_admin"],
         "isAuthor" => (bool) $user["is_author"],
+        "emailVerified" => (bool) $user["email_verified"],
       ],
       "csrf" => $_SESSION["csrf_token"],
     ]);
+
+  // ── Confirmation de l'adresse email ───────────────────────────────────────
+  case "send_verification_code":
+    $auth = require_auth();
+    if (EMAIL_VERIFICATION === "off") {
+      json_error("La confirmation d'adresse est désactivée");
+    }
+    $pdo = get_pdo();
+    $stmt = $pdo->prepare(
+      "SELECT username, email, email_verified FROM users WHERE id = ? LIMIT 1",
+    );
+    $stmt->execute([$auth["id"]]);
+    $me = $stmt->fetch();
+    if (!$me || $me["email"] === null || $me["email"] === "") {
+      json_error("Aucune adresse email sur ce compte");
+    }
+    if ((int) $me["email_verified"] === 1) {
+      json_error("Adresse déjà confirmée");
+    }
+    // Deux garde-fous : un plafond horaire, et un délai entre deux envois.
+    check_rate_limit("verifmail:" . $auth["id"], EMAIL_CODE_MAX_SENDS, 3600);
+    $lastStmt = $pdo->prepare(
+      "SELECT TIMESTAMPDIFF(SECOND, sent_at, NOW()) FROM email_verifications WHERE user_id = ?",
+    );
+    $lastStmt->execute([$auth["id"]]);
+    $since = $lastStmt->fetchColumn();
+    if ($since !== false && $since !== null && (int) $since < EMAIL_CODE_COOLDOWN) {
+      $wait = EMAIL_CODE_COOLDOWN - (int) $since;
+      json_error("Patientez $wait secondes avant de redemander un code", 429);
+    }
+    increment_rate_limit("verifmail:" . $auth["id"]);
+    if (!issue_verification_code($pdo, (int) $auth["id"], $me["email"], $me["username"])) {
+      json_error("L'envoi du code a échoué. Prévenez l'organisateur.", 502);
+    }
+    json_response(["ok" => true, "cooldown" => EMAIL_CODE_COOLDOWN]);
+
+  case "verify_email_code":
+    $auth = require_auth();
+    $body = get_body();
+    $code = preg_replace("/\\D/", "", (string) ($body["code"] ?? ""));
+    if (strlen($code) !== 6) {
+      json_error("Code invalide");
+    }
+    $pdo = get_pdo();
+    $stmt = $pdo->prepare(
+      "SELECT code_hash, attempts, expires_at < NOW() AS expired
+       FROM email_verifications WHERE user_id = ? LIMIT 1",
+    );
+    $stmt->execute([$auth["id"]]);
+    $row = $stmt->fetch();
+    if (!$row) {
+      json_error("Aucun code en cours. Demandez-en un nouveau.");
+    }
+    if ((int) $row["expired"] === 1) {
+      $pdo->prepare("DELETE FROM email_verifications WHERE user_id = ?")->execute([$auth["id"]]);
+      json_error("Code expiré. Demandez-en un nouveau.");
+    }
+    if ((int) $row["attempts"] >= EMAIL_CODE_MAX_ATTEMPTS) {
+      $pdo->prepare("DELETE FROM email_verifications WHERE user_id = ?")->execute([$auth["id"]]);
+      json_error("Trop d'essais. Demandez un nouveau code.", 429);
+    }
+    // Le compteur monte avant la comparaison : un abandon en cours de route ne
+    // doit pas offrir un essai gratuit.
+    $pdo
+      ->prepare("UPDATE email_verifications SET attempts = attempts + 1 WHERE user_id = ?")
+      ->execute([$auth["id"]]);
+    if (!hash_equals($row["code_hash"], hash_hmac("sha256", $code, RESET_SECRET))) {
+      $left = EMAIL_CODE_MAX_ATTEMPTS - ((int) $row["attempts"] + 1);
+      json_error($left > 0 ? "Code incorrect. Essais restants : $left" : "Code incorrect.");
+    }
+    $pdo->prepare("UPDATE users SET email_verified = 1 WHERE id = ?")->execute([$auth["id"]]);
+    $pdo->prepare("DELETE FROM email_verifications WHERE user_id = ?")->execute([$auth["id"]]);
+    log_activity("email_verified", (int) $auth["id"], $auth["username"]);
+    json_response(["ok" => true]);
 
   // ── Mot de passe oublié ───────────────────────────────────────────────────
   case "forgot_password":
@@ -1929,6 +2085,10 @@ switch ($action) {
     check_flag_rate_limit($auth["id"]);
 
     $pdo = get_pdo();
+
+    if (email_verification_blocks($pdo, (int) $auth["id"])) {
+      json_error("Confirmez votre adresse email avant de soumettre un flag");
+    }
 
     // ── Vérifier l'état du CTF ──────────────────────────────────────────
     $stateStmt = $pdo->query("SELECT state_key, state_value FROM ctf_state");
