@@ -140,15 +140,105 @@ function send_mail_smtp(string $toEmail, string $toName, string $subject, string
     return $ok;
 }
 
-/** Gabarit commun : meme habillage que les autres courriels du projet. */
+/**
+ * Gabarit commun des courriels, aux couleurs du CTF.
+ *
+ * Ecrit en tableaux et en styles en ligne : les clients de messagerie ignorent
+ * les feuilles de style et la mise en page moderne. Aucune image non plus —
+ * Gmail les bloque par defaut, la banniere est donc dessinee en HTML.
+ */
 function mail_template(string $title, string $intro, string $highlight, string $footer): string
 {
-    return "<html><body style='background:#0a0a1a;font-family:system-ui,sans-serif;padding:40px'>" .
-        "<div style='max-width:520px;margin:auto;background:#0f0f2a;border:1px solid rgba(139,92,246,0.2);border-radius:16px;padding:32px'>" .
-        "<h1 style='color:#fff'>🏴 CTF Arena</h1>" .
-        "<p style='color:rgba(196,181,253,0.9)'>$title</p>" .
-        "<p style='color:rgba(196,181,253,0.7)'>$intro</p>" .
-        $highlight .
-        "<p style='color:rgba(196,181,253,0.5);font-size:12px'>$footer</p>" .
-        '</div></body></html>';
+    $preheader = strip_tags($intro);
+    return <<<HTML
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CTF Arena</title>
+</head>
+<body style="margin:0;padding:0;background:#0a0a1a;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">$preheader</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background:#0a0a1a;padding:32px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+               style="width:560px;max-width:100%;background:#0f0f2a;border:1px solid #2a2150;border-radius:18px;overflow:hidden;">
+
+          <!-- Banniere -->
+          <tr>
+            <td style="background:#8b5cf6;background-image:linear-gradient(135deg,#a78bfa 0%,#8b5cf6 55%,#6d28d9 100%);padding:28px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:30px;line-height:34px;font-weight:800;color:#ffffff;letter-spacing:0.5px;">
+                    &#127988; CTF Arena
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-top:6px;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:12px;line-height:16px;font-weight:600;color:#ede9fe;letter-spacing:3px;text-transform:uppercase;">
+                    Capture the Flag
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Liseré -->
+          <tr><td style="height:3px;background:#1a1440;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+          <!-- Corps -->
+          <tr>
+            <td style="padding:32px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
+              <p style="margin:0 0 14px;font-size:18px;line-height:26px;font-weight:600;color:#ffffff;">$title</p>
+              <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#c4b5fd;">$intro</p>
+              $highlight
+              <p style="margin:24px 0 0;font-size:12px;line-height:19px;color:#8b7fb8;">$footer</p>
+            </td>
+          </tr>
+
+          <!-- Pied -->
+          <tr>
+            <td style="padding:18px 32px;background:#0b0920;border-top:1px solid #2a2150;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;line-height:17px;color:#6d6494;">
+              Message automatique de CTF Arena. Inutile d'y repondre.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+HTML;
+}
+
+/** Bloc de code a six chiffres, mis en avant au centre du courriel. */
+function mail_code_block(string $code): string
+{
+    $spaced = implode('&#8202;', str_split($code));
+    return <<<HTML
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td align="center" style="background:#1a1440;border:1px solid #4c1d95;border-radius:14px;padding:22px 16px;">
+      <div style="font-family:Consolas,Menlo,Courier New,monospace;font-size:38px;line-height:44px;font-weight:700;color:#ffffff;letter-spacing:12px;text-indent:12px;">$spaced</div>
+      <div style="padding-top:8px;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;">Votre code</div>
+    </td>
+  </tr>
+</table>
+HTML;
+}
+
+/** Bouton d'action, rendu en tableau pour survivre aux clients de messagerie. */
+function mail_button(string $url, string $label): string
+{
+    return <<<HTML
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td align="center" style="background:#8b5cf6;border-radius:12px;">
+      <a href="$url" style="display:inline-block;padding:14px 32px;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">$label</a>
+    </td>
+  </tr>
+</table>
+HTML;
 }

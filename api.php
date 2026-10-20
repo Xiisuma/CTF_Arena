@@ -1095,10 +1095,10 @@ function send_reset_email(string $to_email, string $to_name, string $token): boo
   $safe_name = htmlspecialchars($to_name, ENT_QUOTES, "UTF-8");
   $safe_url = htmlspecialchars($reset_url, ENT_QUOTES, "UTF-8");
   $body = mail_template(
-    "Bonjour <strong>$safe_name</strong>,",
-    "Cliquez ci-dessous pour réinitialiser votre mot de passe.",
-    "<a href='$safe_url' style='display:inline-block;background:#8b5cf6;color:#fff;padding:14px 32px;border-radius:12px;font-weight:700;text-decoration:none;margin:16px 0'>Réinitialiser</a>",
-    "Ce lien expire dans 1 heure."
+    "Bonjour $safe_name,",
+    "Vous avez demandé à réinitialiser votre mot de passe. Le bouton ci-dessous ouvre la page de changement.",
+    mail_button($safe_url, "Réinitialiser mon mot de passe"),
+    "Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé."
   );
   return send_mail_smtp(
     $to_email,
@@ -1114,10 +1114,10 @@ function send_verification_email(string $to_email, string $to_name, string $code
   $safe_name = htmlspecialchars($to_name, ENT_QUOTES, "UTF-8");
   $minutes = (int) (EMAIL_CODE_TTL / 60);
   $body = mail_template(
-    "Bonjour <strong>$safe_name</strong>,",
-    "Voici le code qui confirme votre adresse sur CTF Arena.",
-    "<p style='font-size:34px;font-weight:800;letter-spacing:10px;color:#fff;background:rgba(139,92,246,0.15);border-radius:12px;padding:18px;text-align:center;margin:16px 0'>$code</p>",
-    "Ce code expire dans $minutes minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message."
+    "Bonjour $safe_name,",
+    "Voici le code qui confirme votre adresse sur CTF Arena. Saisissez-le dans le bandeau affiché en haut de la plateforme.",
+    mail_code_block($code),
+    "Ce code expire dans $minutes minutes et ne sert qu'une fois. Si vous n'êtes pas à l'origine de cette demande, ignorez ce message."
   );
   return send_mail_smtp($to_email, $to_name, "🔑 Votre code de confirmation CTF Arena", $body);
 }

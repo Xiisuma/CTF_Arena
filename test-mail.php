@@ -48,9 +48,9 @@ if (SMTP_USER === '' || SMTP_PASSWORD === '') {
 
 $body = mail_template(
     'Test de configuration',
-    'Si vous lisez ce message, l envoi de courriel fonctionne : les codes de confirmation arriveront.',
-    "<p style='font-size:34px;font-weight:800;letter-spacing:10px;color:#fff;background:rgba(139,92,246,0.15);border-radius:12px;padding:18px;text-align:center;margin:16px 0'>123456</p>",
-    'Message envoye par test-mail.php.'
+    "Si vous lisez ce message, l'envoi de courriel fonctionne : les codes de confirmation arriveront de la meme facon.",
+    mail_code_block('123456'),
+    'Message envoye par ctf-test-mail.php. Le code ci-dessus est un exemple, il ne sert a rien.'
 );
 
 $ok = send_mail_smtp($destination, 'Organisateur', 'Test CTF Arena', $body);
