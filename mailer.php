@@ -144,8 +144,10 @@ function send_mail_smtp(string $toEmail, string $toName, string $subject, string
  * Gabarit commun des courriels, aux couleurs du CTF.
  *
  * Ecrit en tableaux et en styles en ligne : les clients de messagerie ignorent
- * les feuilles de style et la mise en page moderne. Aucune image non plus —
- * Gmail les bloque par defaut, la banniere est donc dessinee en HTML.
+ * les feuilles de style et la mise en page moderne. Les fonds passent par
+ * l'attribut bgcolor double d'un background-color en toutes lettres — Gmail
+ * jette le raccourci background: et la carte se retrouve sans couleur.
+ * Aucune image non plus : Gmail bloque les images distantes par defaut.
  */
 function mail_template(string $title, string $intro, string $highlight, string $footer): string
 {
@@ -156,20 +158,24 @@ function mail_template(string $title, string $intro, string $highlight, string $
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
 <title>CTF Arena</title>
 </head>
-<body style="margin:0;padding:0;background:#0a0a1a;">
+<body bgcolor="#0a0a1a" style="margin:0;padding:0;background-color:#0a0a1a;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;">$preheader</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-         style="background:#0a0a1a;padding:32px 12px;">
+         bgcolor="#0a0a1a" style="background-color:#0a0a1a;">
     <tr>
-      <td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
-               style="width:560px;max-width:100%;background:#0f0f2a;border:1px solid #2a2150;border-radius:18px;overflow:hidden;">
+      <td align="center" bgcolor="#0a0a1a" style="background-color:#0a0a1a;padding:32px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               bgcolor="#0f0f2a"
+               style="width:100%;max-width:560px;background-color:#0f0f2a;border:1px solid #2a2150;border-radius:18px;overflow:hidden;">
 
           <!-- Banniere -->
           <tr>
-            <td style="background:#8b5cf6;background-image:linear-gradient(135deg,#a78bfa 0%,#8b5cf6 55%,#6d28d9 100%);padding:28px 32px;">
+            <td bgcolor="#7c4df0"
+                style="background-color:#7c4df0;background-image:linear-gradient(135deg,#a78bfa 0%,#8b5cf6 55%,#6d28d9 100%);padding:28px 32px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:30px;line-height:34px;font-weight:800;color:#ffffff;letter-spacing:0.5px;">
@@ -185,12 +191,12 @@ function mail_template(string $title, string $intro, string $highlight, string $
             </td>
           </tr>
 
-          <!-- Liseré -->
-          <tr><td style="height:3px;background:#1a1440;font-size:0;line-height:0;">&nbsp;</td></tr>
+          <!-- Lisere -->
+          <tr><td bgcolor="#1a1440" style="height:3px;background-color:#1a1440;font-size:0;line-height:0;">&nbsp;</td></tr>
 
           <!-- Corps -->
           <tr>
-            <td style="padding:32px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
+            <td bgcolor="#0f0f2a" style="background-color:#0f0f2a;padding:32px;font-family:Segoe UI,Helvetica,Arial,sans-serif;">
               <p style="margin:0 0 14px;font-size:18px;line-height:26px;font-weight:600;color:#ffffff;">$title</p>
               <p style="margin:0 0 24px;font-size:15px;line-height:24px;color:#c4b5fd;">$intro</p>
               $highlight
@@ -200,7 +206,7 @@ function mail_template(string $title, string $intro, string $highlight, string $
 
           <!-- Pied -->
           <tr>
-            <td style="padding:18px 32px;background:#0b0920;border-top:1px solid #2a2150;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;line-height:17px;color:#6d6494;">
+            <td bgcolor="#0b0920" style="background-color:#0b0920;padding:18px 32px;border-top:1px solid #2a2150;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;line-height:17px;color:#6d6494;">
               Message automatique de CTF Arena. Inutile d'y repondre.
             </td>
           </tr>
@@ -213,16 +219,37 @@ function mail_template(string $title, string $intro, string $highlight, string $
 HTML;
 }
 
-/** Bloc de code a six chiffres, mis en avant au centre du courriel. */
+/**
+ * Bloc du code a six chiffres.
+ *
+ * Chaque chiffre est une case de largeur fixe posee en inline-block : sur un
+ * ecran large les six tiennent sur une ligne, sur un telephone la place manque
+ * et le navigateur replie tout seul en deux rangees de trois. Pas de requete
+ * media, que Gmail n'applique pas toujours.
+ */
 function mail_code_block(string $code): string
 {
-    $spaced = implode('&#8202;', str_split($code));
+    $cells = '';
+    // Deux groupes de trois, chacun insecable : sur un telephone la place
+    // manque pour les deux, le second passe donc sous le premier.
+    foreach (str_split($code, 3) as $group) {
+        $digits = '';
+        foreach (str_split($group) as $digit) {
+            $digits .=
+                '<span style="display:inline-block;width:62px;margin:5px 3px;' .
+                'background-color:#241b56;border:1px solid #4c1d95;border-radius:12px;' .
+                'font-family:Consolas,Menlo,Courier New,monospace;font-size:34px;line-height:62px;' .
+                'font-weight:700;color:#ffffff;text-align:center;">' . $digit . '</span>';
+        }
+        $cells .= '<span style="display:inline-block;white-space:nowrap;">' . $digits . '</span>';
+    }
     return <<<HTML
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td align="center" style="background:#1a1440;border:1px solid #4c1d95;border-radius:14px;padding:22px 16px;">
-      <div style="font-family:Consolas,Menlo,Courier New,monospace;font-size:38px;line-height:44px;font-weight:700;color:#ffffff;letter-spacing:12px;text-indent:12px;">$spaced</div>
-      <div style="padding-top:8px;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;">Votre code</div>
+    <td align="center" bgcolor="#140f33"
+        style="background-color:#140f33;border:1px solid #3b2d7a;border-radius:16px;padding:18px 10px;">
+      <div style="font-size:0;line-height:0;">$cells</div>
+      <div style="padding-top:12px;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;">Votre code</div>
     </td>
   </tr>
 </table>
@@ -235,7 +262,7 @@ function mail_button(string $url, string $label): string
     return <<<HTML
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td align="center" style="background:#8b5cf6;border-radius:12px;">
+    <td align="center" bgcolor="#7c4df0" style="background-color:#7c4df0;border-radius:12px;">
       <a href="$url" style="display:inline-block;padding:14px 32px;font-family:Segoe UI,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">$label</a>
     </td>
   </tr>
