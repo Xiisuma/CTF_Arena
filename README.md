@@ -2,7 +2,7 @@
 # 🏴 CTF Arena
 
 > **Plateforme Capture The Flag complète et moderne**
-> React 19 · TypeScript · Tailwind CSS 4 · PHP 8.2 · MySQL 8 · Docker
+> React 19 · TypeScript · Tailwind CSS 4 · PHP 8.4 · MySQL 8 · Docker
 
 <div align="center">
 
@@ -12,7 +12,7 @@
 ![React](https://img.shields.io/badge/React-19.2-61DAFB.svg?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.1-38B2AC.svg?logo=tailwind-css)
-![PHP](https://img.shields.io/badge/PHP-8.2-777BB4.svg?logo=php)
+![PHP](https://img.shields.io/badge/PHP-8.4-777BB4.svg?logo=php)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1.svg?logo=mysql)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -46,7 +46,7 @@
 ### Points forts
 
 - **Stack moderne** — React 19 + TypeScript strict + Tailwind CSS 4 + Vite 7 + Zod 4
-- **Backend sécurisé** — PHP 8.2, sessions HTTP-only, CSRF, rate limiting, CORS whitelist
+- **Backend sécurisé** — PHP 8.4, sessions HTTP-only, CSRF, rate limiting, CORS whitelist
 - **Flags chiffrés** — AES-256-GCM côté serveur, le flag en clair n'est jamais exposé
 - **Déploiement one-command** — `docker compose up -d` lance les 3 services (DB, backend, frontend)
 - **Catégories dynamiques** — CRUD complet depuis l'admin, tri personnalisé, descriptions Markdown
@@ -217,7 +217,7 @@ openssl rand -base64 24
 └────────────────────────────────────────────────┼───┘     │
                                                  │         │
 ┌────────────────────────────────────────────────▼───────┐ │
-│  backend  (php:8.2-apache)                             │ │
+│  backend  (php:8.4-apache)                             │ │
 │  api.php  — API REST complète                          │ │
 │  init.php — Initialisation BDD au démarrage            │ │
 │  uploads/ — Fichiers challenges (volume Docker)        │ │
@@ -305,12 +305,12 @@ ctf-arena/
 │
 ├── 📂 uploads/                      # Placeholder (volume Docker en prod)
 │
-├── api.php                          # API REST PHP 8.2 complète (v3.1)
+├── api.php                          # API REST PHP 8.4 complète (v3.1)
 ├── init.php                         # Bootstrap BDD + compte admin au démarrage
 ├── nginx.conf                       # Config Nginx (proxy API + SPA fallback)
 ├── php.ini                          # Config PHP custom
 ├── Dockerfile                       # Build frontend (node → nginx)
-├── Dockerfile.backend               # Build backend (php:8.2-apache)
+├── Dockerfile.backend               # Build backend (php:8.4-apache)
 ├── docker-compose.yml               # Orchestration 3 services
 ├── vite.config.ts                   # Config Vite (singlefile build)
 ├── tsconfig.json
@@ -727,7 +727,7 @@ Ces volumes survivent aux redémarrages et aux `docker compose down` (sans `-v`)
 | Vite | 7.2 | Build tool + dev server |
 | Tailwind CSS | 4.1 | Framework CSS (variables CSS) |
 | React Router | 7.14 | Routage SPA |
-| PHP | 8.2 | API REST backend |
+| PHP | 8.4 | API REST backend |
 | MySQL | 8.0 | Base de données relationnelle |
 | Apache | 2.4 | Serveur PHP (mod_rewrite) |
 | Nginx | alpine | Reverse proxy + SPA |
@@ -880,7 +880,7 @@ git clone <url> && cd ctf-arena && cp .env.example .env && docker compose up -d
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org)
-[![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?logo=php)](https://php.net)
+[![PHP](https://img.shields.io/badge/PHP-8.4-777BB4?logo=php)](https://php.net)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker)](https://docker.com)
 
 </div>

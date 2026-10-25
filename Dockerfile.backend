@@ -1,5 +1,6 @@
 
-FROM php:8.2-apache
+# PHP 8.4 : la branche 8.2 n'a plus de correctifs de securite depuis fin 2025.
+FROM php:8.4-apache
 
 # Extensions PHP nécessaires
 RUN docker-php-ext-install pdo pdo_mysql
