@@ -18,6 +18,7 @@ const navItems = [
   { to: "/ranking", label: "Classement", icon: "🏆", adminOnly: false },
   { to: "/achievements", label: "Succès", icon: "🎖️", adminOnly: false },
   { to: "/guide", label: "Règles", icon: "📜", adminOnly: false },
+  { to: "/help", label: "Aide", icon: "🧰", adminOnly: false },
   { to: "/settings", label: "Parametres", icon: "⚙️", adminOnly: true },
 ];
 

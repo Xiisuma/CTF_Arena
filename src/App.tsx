@@ -53,6 +53,7 @@ const LoginPage         = lazyPage(() => import("./pages/LoginPage"));
 const HomePage          = lazyPage(() => import("./pages/HomePage"));
 const RankingPage       = lazyPage(() => import("./pages/RankingPage"));
 const GuidePage         = lazyPage(() => import("./pages/GuidePage"));
+const HelpPage          = lazyPage(() => import("./pages/HelpPage"));
 const ProfilePage       = lazyPage(() => import("./pages/ProfilePage"));
 const AchievementsPage  = lazyPage(() => import("./pages/AchievementsPage"));
 const SettingsPage      = lazyPage(() => import("./pages/SettingsPage"));
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="/"              element={<ProtectedRoute><ErrorBoundary>{ctfState.podiumVisible ? <PodiumPage /> : <HomePage />}</ErrorBoundary></ProtectedRoute>} />
         <Route path="/ranking"       element={<ProtectedRoute><ErrorBoundary><RankingPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/guide"         element={<ProtectedRoute><ErrorBoundary><GuidePage /></ErrorBoundary></ProtectedRoute>} />
+        <Route path="/help"          element={<ProtectedRoute><ErrorBoundary><HelpPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/profile"       element={<ProtectedRoute><ErrorBoundary><ProfilePage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/achievements"  element={<ProtectedRoute><ErrorBoundary><AchievementsPage /></ErrorBoundary></ProtectedRoute>} />
         <Route path="/settings"      element={<ProtectedRoute><ErrorBoundary><SettingsPage /></ErrorBoundary></ProtectedRoute>} />
