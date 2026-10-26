@@ -11,10 +11,6 @@ import {
   CrackStationLogo,
   CyberChefLogo,
   DcodeLogo,
-  ExifToolLogo,
-  GhidraLogo,
-  OsintLogo,
-  WiresharkLogo,
 } from "./toolLogos";
 
 export interface Tool {
@@ -67,41 +63,5 @@ export const TOOLS: Tool[] = [
     when: "Pour les chiffrements classiques et les énigmes à la main, là où CyberChef s'arrête.",
     tags: ["Cryptographie", "OSINT"],
     Logo: DcodeLogo,
-  },
-  {
-    name: "Wireshark",
-    url: "https://www.wireshark.org/",
-    host: "wireshark.org",
-    what: "Analyse une capture de trafic : filtre les paquets, reconstitue les échanges, extrait les fichiers transportés.",
-    when: "Dès qu'un challenge fournit un fichier .pcap ou .pcapng.",
-    tags: ["Réseau", "Forensic"],
-    Logo: WiresharkLogo,
-  },
-  {
-    name: "Ghidra",
-    url: "https://ghidra-sre.org/",
-    host: "ghidra-sre.org",
-    what: "Décompile un binaire et affiche un équivalent lisible en C, avec le graphe des fonctions.",
-    when: "Pour comprendre un exécutable fourni sans son code source.",
-    tags: ["Reverse Engineering", "Pwn"],
-    Logo: GhidraLogo,
-  },
-  {
-    name: "ExifTool",
-    url: "https://exiftool.org/",
-    host: "exiftool.org",
-    what: "Lit toutes les métadonnées d'un fichier : appareil, date, position GPS, commentaires oubliés.",
-    when: "Sur toute image ou tout document : le flag est parfois simplement écrit dans un champ de métadonnées.",
-    tags: ["Forensic", "OSINT", "Stéganographie"],
-    Logo: ExifToolLogo,
-  },
-  {
-    name: "OSINT Framework",
-    url: "https://osintframework.com/",
-    host: "osintframework.com",
-    what: "Un arbre de ressources en sources ouvertes, classées par type de piste : pseudo, adresse, image, domaine.",
-    when: "Quand vous avez un indice et que vous ne savez pas par quel service commencer.",
-    tags: ["OSINT"],
-    Logo: OsintLogo,
   },
 ];

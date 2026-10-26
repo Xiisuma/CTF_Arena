@@ -30,8 +30,8 @@ describe("HelpPage", () => {
 
   it("filtre les outils par domaine, puis revient à la liste complète", async () => {
     render(<HelpPage />);
-    await userEvent.click(screen.getByRole("button", { name: "Réseau" }));
-    expect(screen.getByText("Wireshark")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Stéganographie" }));
+    expect(screen.getByText("Aperi'Solve")).toBeTruthy();
     expect(screen.queryByText("CrackStation")).toBeNull();
 
     await userEvent.click(screen.getByRole("button", { name: "Tous" }));
